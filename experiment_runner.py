@@ -3,28 +3,35 @@
 experiment_runner.py — Path Distribution Theory: Experimental Loop
 ====================================================================
 
-For each (model, task) combination:
-  1. Compute Analytical Path Entropy  H_ana   (full architecture)
-  2. Compute Empirical  Path Entropy  H_emp   (AtP-filtered active subgraph)
-  3. Compute Synergy Gap              H_ana − H_emp
-  4. Compute Tail-Mass Ratio          τ_k
-  5. Compute task Accuracy
+For each (model, task):
+  1. Analytical Path Entropy  H_ana   (architecture only)
+  2. Empirical  Path Entropy  H_emp   (AtP active subgraph)
+  3. Synergy Gap              ΔH = H_ana − H_emp
+  4. Tail-Mass Ratio          τ_k
+  5. Task Accuracy            (log-prob comparison for classification / MCQ)
 
 Outputs
-  results/path_metrics.csv            — full results table
-  results/entropy_vs_complexity.png   — 3-panel figure
+  results/path_metrics.csv
+  results/entropy_vs_complexity.png
 
 Usage
 -----
-  python experiment_runner.py [options]
-
-  # Quick test with GPT-2 on CPU:
+  # Quick test — GPT-2 on CPU, 5 samples:
   python experiment_runner.py --models gpt2 --n_samples 5 --device cpu
 
-  # Full A100 run:
+  # Pythia scaling series:
+  python experiment_runner.py --model_group pythia --tasks sst2,boolq,arc_easy,hellaswag
+
+  # GPT-2 family:
+  python experiment_runner.py --model_group gpt2 --tasks sst2,boolq,piqa,arc_easy
+
+  # GPT-J + Pythia comparison:
   python experiment_runner.py \\
-      --models "meta-llama/Llama-3-8B,EleutherAI/gpt-j-6b,tiiuae/falcon-7b" \\
-      --tasks  sst2,boolq,gsm8k  --n_samples 50
+      --models "EleutherAI/gpt-j-6b,EleutherAI/pythia-6.9b" \\
+      --tasks sst2,boolq,arc_easy,arc_challenge,hellaswag,gsm8k
+
+  # Full A100 sweep:
+  python experiment_runner.py --model_group all --n_samples 50
 """
 
 from __future__ import annotations
@@ -35,11 +42,10 @@ import logging
 import os
 import re
 import warnings
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
-matplotlib.use("Agg")          # headless-safe; swapped to TkAgg below if interactive
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -52,79 +58,154 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Constants
+# Model catalogue
 # ─────────────────────────────────────────────────────────────────────────────
 
-DEFAULT_MODELS: List[str] = [
-    "meta-llama/Llama-3-8B",
-    "EleutherAI/gpt-j-6b",
-    "tiiuae/falcon-7b",
-]
+MODEL_GROUPS: Dict[str, List[str]] = {
+    # Pythia family — identical architecture, vary only in scale (sequential, pre-LN)
+    "pythia": [
+        "EleutherAI/pythia-70m",
+        "EleutherAI/pythia-160m",
+        "EleutherAI/pythia-410m",
+        "EleutherAI/pythia-1b",
+        "EleutherAI/pythia-2.8b",
+        "EleutherAI/pythia-6.9b",
+    ],
+    # GPT-2 family — sequential pre-LN
+    "gpt2": [
+        "gpt2",
+        "gpt2-medium",
+        "gpt2-large",
+        "gpt2-xl",
+    ],
+    # GPT-Neo family — sequential (GPT-Neo) + parallel (GPT-J)
+    "neo": [
+        "EleutherAI/gpt-neo-125m",
+        "EleutherAI/gpt-neo-1.3B",
+        "EleutherAI/gpt-neo-2.7B",
+        "EleutherAI/gpt-j-6b",      # parallel architecture
+    ],
+    # Large instruction-tuned / base models
+    "large": [
+        "meta-llama/Llama-3-8B",
+        "EleutherAI/gpt-j-6b",
+        "tiiuae/falcon-7b",
+    ],
+}
+MODEL_GROUPS["all"] = (
+    MODEL_GROUPS["pythia"]
+    + MODEL_GROUPS["gpt2"]
+    + MODEL_GROUPS["neo"]
+)
 
-TASKS: Dict[str, Dict[str, Any]] = {
-    "sst2":  {"hf_name": "sst2",  "hf_split": "validation", "complexity": 0},
-    "boolq": {"hf_name": "boolq", "hf_split": "validation", "complexity": 1},
-    "gsm8k": {"hf_name": "gsm8k", "hf_split": "test",       "complexity": 2,
-              "hf_config": "main"},
+# Approximate parameter counts for plot annotations
+MODEL_PARAMS: Dict[str, float] = {
+    "EleutherAI/pythia-70m":      0.07,
+    "EleutherAI/pythia-160m":     0.16,
+    "EleutherAI/pythia-410m":     0.41,
+    "EleutherAI/pythia-1b":       1.0,
+    "EleutherAI/pythia-2.8b":     2.8,
+    "EleutherAI/pythia-6.9b":     6.9,
+    "gpt2":                       0.12,
+    "gpt2-medium":                0.35,
+    "gpt2-large":                 0.77,
+    "gpt2-xl":                    1.5,
+    "EleutherAI/gpt-neo-125m":    0.125,
+    "EleutherAI/gpt-neo-1.3B":    1.3,
+    "EleutherAI/gpt-neo-2.7B":    2.7,
+    "EleutherAI/gpt-j-6b":        6.0,
+    "meta-llama/Llama-3-8B":      8.0,
+    "tiiuae/falcon-7b":           7.0,
 }
 
-COMPLEXITY_LABELS = {0: "SST-2 (Low)", 1: "BoolQ (Medium)", 2: "GSM8K (High)"}
+# ─────────────────────────────────────────────────────────────────────────────
+# Task catalogue
+# ─────────────────────────────────────────────────────────────────────────────
+# complexity: 0=Low  1=Medium  2=High
+# eval_type:  "binary"    → compare two label tokens by max-logit
+#             "choice"    → score each completion by mean log-prob
+#             "generative"→ greedy-decode and regex-match answer
 
+TASKS: Dict[str, Dict[str, Any]] = {
+    # ── Low complexity ──────────────────────────────────────────────────────
+    "sst2": {
+        "hf_name": "sst2", "hf_split": "validation",
+        "complexity": 0, "eval_type": "binary",
+        "labels": [["negative", "Negative"], ["positive", "Positive"]],
+    },
+    "piqa": {
+        "hf_name": "piqa", "hf_split": "validation",
+        "complexity": 0, "eval_type": "choice",
+    },
+    # ── Medium complexity ────────────────────────────────────────────────────
+    "boolq": {
+        "hf_name": "boolq", "hf_split": "validation",
+        "complexity": 1, "eval_type": "binary",
+        "labels": [["no", "No", "false", "False"], ["yes", "Yes", "true", "True"]],
+    },
+    "arc_easy": {
+        "hf_name": "ai2_arc", "hf_split": "validation", "hf_config": "ARC-Easy",
+        "complexity": 1, "eval_type": "choice",
+    },
+    "winogrande": {
+        "hf_name": "winogrande", "hf_split": "validation", "hf_config": "winogrande_xl",
+        "complexity": 1, "eval_type": "choice",
+    },
+    # ── High complexity ──────────────────────────────────────────────────────
+    "hellaswag": {
+        "hf_name": "hellaswag", "hf_split": "validation",
+        "complexity": 2, "eval_type": "choice",
+    },
+    "arc_challenge": {
+        "hf_name": "ai2_arc", "hf_split": "validation", "hf_config": "ARC-Challenge",
+        "complexity": 2, "eval_type": "choice",
+    },
+    "gsm8k": {
+        "hf_name": "gsm8k", "hf_split": "test", "hf_config": "main",
+        "complexity": 2, "eval_type": "generative",
+    },
+}
+
+COMPLEXITY_LABELS = {0: "Low", 1: "Medium", 2: "High"}
+COMPLEXITY_TASK_LABELS = {
+    0: "Low\n(SST-2 / PIQA)",
+    1: "Medium\n(BoolQ / ARC-Easy)",
+    2: "High\n(HellaSwag / GSM8K)",
+}
+
+DEFAULT_TASKS = ["sst2", "boolq", "arc_easy", "hellaswag", "gsm8k"]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Model loading
 # ─────────────────────────────────────────────────────────────────────────────
 
-def load_model(
-    model_name: str,
-    device: str = "cuda",
-    dtype: torch.dtype = torch.float16,
-):
-    """
-    Load a HookedTransformer.
-
-    Tries 8-bit quantisation (bitsandbytes) first; falls back to fp16.
-    """
+def load_model(model_name: str, device: str = "cuda", dtype: torch.dtype = torch.float16):
+    """Load HookedTransformer; try 8-bit, fall back to fp16."""
     from transformer_lens import HookedTransformer
 
     log.info("Loading model: %s", model_name)
-
-    # ── Attempt 8-bit via HuggingFace + bitsandbytes ──
     try:
-        import bitsandbytes          # noqa: F401
+        import bitsandbytes  # noqa: F401
         from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
         bnb_cfg = BitsAndBytesConfig(
-            load_in_8bit=True,
-            llm_int8_threshold=6.0,
-            llm_int8_has_fp16_weight=False,
+            load_in_8bit=True, llm_int8_threshold=6.0, llm_int8_has_fp16_weight=False
         )
-        log.info("  → attempting 8-bit quantised load …")
+        log.info("  → 8-bit quantised load …")
         hf_model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=bnb_cfg,
-            device_map="auto",
-            torch_dtype=torch.float16,
+            model_name, quantization_config=bnb_cfg,
+            device_map="auto", torch_dtype=torch.float16,
         )
         model = HookedTransformer.from_pretrained(
-            model_name,
-            hf_model=hf_model,
-            dtype=torch.float16,
-            move_to_device=False,
+            model_name, hf_model=hf_model, dtype=torch.float16, move_to_device=False,
         )
-        log.info("  ✓ 8-bit load succeeded.")
+        log.info("  ✓ 8-bit succeeded.")
         model.eval()
         return model
-
     except Exception as exc:
-        log.warning("  8-bit load failed (%s) — falling back to fp16.", exc)
+        log.warning("  8-bit failed (%s) — fp16 fallback.", exc)
 
-    # ── fp16 fallback ──
-    model = HookedTransformer.from_pretrained(
-        model_name,
-        dtype=dtype,
-        device=device,
-    )
+    model = HookedTransformer.from_pretrained(model_name, dtype=dtype, device=device)
     log.info("  ✓ fp16 load succeeded.")
     model.eval()
     return model
@@ -134,109 +215,196 @@ def load_model(
 # Dataset helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def load_task_samples(
-    task_name: str,
-    n_samples: int = 50,
-    seed: int = 42,
-) -> List[Dict[str, Any]]:
-    """
-    Load n_samples from a HuggingFace dataset and format as prompt-label pairs.
-    """
+def load_task_samples(task_name: str, n_samples: int = 50, seed: int = 42) -> List[Dict]:
     from datasets import load_dataset as hf_load
 
-    cfg = TASKS[task_name]
+    cfg    = TASKS[task_name]
     kwargs: Dict[str, Any] = {"path": cfg["hf_name"], "split": cfg["hf_split"]}
     if "hf_config" in cfg:
         kwargs["name"] = cfg["hf_config"]
 
-    ds = hf_load(**kwargs)
+    ds      = hf_load(**kwargs)
     rng     = np.random.default_rng(seed)
     indices = rng.choice(len(ds), size=min(n_samples, len(ds)), replace=False)
 
-    samples = []
-    for idx in indices.tolist():
-        row    = ds[int(idx)]
-        sample = _format_sample(task_name, row)
-        if sample is not None:
-            samples.append(sample)
-
-    log.info("  Loaded %d samples for %s", len(samples), task_name)
+    samples = [s for idx in indices.tolist()
+               if (s := _format_sample(task_name, ds[int(idx)])) is not None]
+    log.info("  Loaded %d / %d samples for %s", len(samples), n_samples, task_name)
     return samples
 
 
-def _format_sample(task_name: str, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Convert a dataset row into {prompt, label, task, correct_class}."""
+def _format_sample(task_name: str, row: Dict) -> Optional[Dict]:
+    """Convert a dataset row into a standardised sample dict."""
+
     if task_name == "sst2":
-        prompt = (
-            f"Review: {row['sentence']}\n"
-            f"Sentiment (positive/negative):"
-        )
-        label  = "positive" if row["label"] == 1 else "negative"
-        return {"prompt": prompt, "label": label, "task": task_name,
-                "correct_class": int(row["label"])}
+        return {
+            "prompt": f"Review: {row['sentence']}\nSentiment (positive/negative):",
+            "label": "positive" if row["label"] == 1 else "negative",
+            "correct_class": int(row["label"]),
+            "task": task_name,
+        }
 
     if task_name == "boolq":
-        prompt = (
-            f"Passage: {row['passage'][:512]}\n"
-            f"Question: {row['question']}\n"
-            f"Answer (yes/no):"
-        )
-        label  = "yes" if row["answer"] else "no"
-        return {"prompt": prompt, "label": label, "task": task_name,
-                "correct_class": int(row["answer"])}
+        return {
+            "prompt": (
+                f"Passage: {row['passage'][:400]}\n"
+                f"Question: {row['question']}\nAnswer (yes/no):"
+            ),
+            "label": "yes" if row["answer"] else "no",
+            "correct_class": int(row["answer"]),
+            "task": task_name,
+        }
+
+    if task_name == "piqa":
+        return {
+            "prompt": f"Goal: {row['goal']}\nSolution:",
+            "choices": [f" {row['sol1']}", f" {row['sol2']}"],
+            "correct_class": int(row["label"]),
+            "task": task_name,
+        }
+
+    if task_name in ("arc_easy", "arc_challenge"):
+        choices_text = row["choices"]["text"]
+        choices_label = row["choices"]["label"]
+        correct_idx = choices_label.index(row["answerKey"]) if row["answerKey"] in choices_label else 0
+        return {
+            "prompt": f"Question: {row['question']}\nAnswer:",
+            "choices": [f" {c}" for c in choices_text],
+            "correct_class": correct_idx,
+            "task": task_name,
+        }
+
+    if task_name == "hellaswag":
+        ctx = row["ctx_a"] + " " + row["ctx_b"].capitalize()
+        return {
+            "prompt": ctx,
+            "choices": [" " + e for e in row["endings"]],
+            "correct_class": int(row["label"]),
+            "task": task_name,
+        }
+
+    if task_name == "winogrande":
+        # Two options fill the blank; evaluate as continuations
+        blank_pos = row["sentence"].find("_")
+        context   = row["sentence"][:blank_pos]
+        return {
+            "prompt": context,
+            "choices": [row["option1"], row["option2"]],
+            "correct_class": int(row["answer"]) - 1,   # "1"/"2" → 0/1
+            "task": task_name,
+        }
 
     if task_name == "gsm8k":
-        prompt = (
-            f"Problem: {row['question']}\n"
-            f"Solution: Let me solve this step by step.\n"
-        )
         answer_str = row.get("answer", "")
         match      = re.search(r"####\s*([\d,.\-]+)", answer_str)
         label      = match.group(1).replace(",", "") if match else ""
-        return {"prompt": prompt, "label": label, "task": task_name,
-                "correct_class": None}
+        return {
+            "prompt": f"Problem: {row['question']}\nSolution:",
+            "label": label,
+            "correct_class": None,
+            "task": task_name,
+        }
 
     return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Accuracy helpers
+# Accuracy  (log-probability based — robust across tokenisers)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _decode_top_token(model, logits: torch.Tensor, pos: int = -1) -> str:
-    """Return the decoded string of the highest-probability next token."""
-    top_id = int(logits[0, pos].argmax())
-    return model.tokenizer.decode([top_id]).strip().lower()
+def _label_token_ids(model, words: List[str]) -> List[int]:
+    """
+    Return all single-token IDs corresponding to any variant in `words`.
+    Includes leading-space variants since most LLMs tokenise mid-sentence
+    words with a space prefix.
+    """
+    variants: List[str] = []
+    for w in words:
+        variants += [w, w.capitalize(), w.upper(), f" {w}", f" {w.capitalize()}"]
+    ids: List[int] = []
+    for v in variants:
+        enc = model.tokenizer.encode(v, add_special_tokens=False)
+        if len(enc) == 1:
+            ids.append(enc[0])
+    return list(set(ids))
 
 
-def check_accuracy(
-    task_name:     str,
-    model,
-    tokens:        torch.Tensor,
-    sample:        Dict[str, Any],
-) -> bool:
-    """Return True if the model's greedy next-token prediction is correct."""
+def _score_continuation(model, prompt_tokens: torch.Tensor, cont_tokens: torch.Tensor) -> float:
+    """
+    Mean per-token log-probability of `cont_tokens` given `prompt_tokens`.
+    Used for multiple-choice / completion scoring.
+    """
+    if cont_tokens.shape[-1] == 0:
+        return -float("inf")
+    full   = torch.cat([prompt_tokens, cont_tokens], dim=-1)
     with torch.no_grad():
-        logits = model(tokens, return_type="logits")
+        logits = model(full, return_type="logits")        # [1, seq, vocab]
+    log_probs = torch.log_softmax(logits[0], dim=-1)
+    n_prompt  = prompt_tokens.shape[-1]
+    n_cont    = cont_tokens.shape[-1]
+    score = 0.0
+    for i in range(n_cont):
+        pos     = n_prompt + i - 1          # logit at position predicts token at pos+1
+        tok_id  = cont_tokens[0, i]
+        score  += log_probs[pos, tok_id].item()
+    return score / n_cont
 
-    pred = _decode_top_token(model, logits)
 
-    if task_name == "sst2":
-        return sample["label"].lower() in pred or pred in sample["label"].lower()
+def check_accuracy(task_name: str, model, tokens: torch.Tensor, sample: Dict) -> bool:
+    """
+    Compute task accuracy using log-probability comparison.
 
-    if task_name == "boolq":
-        return sample["label"].lower() in pred or pred in sample["label"].lower()
+    Binary tasks  → compare max-logit of positive-class tokens vs negative-class tokens.
+    Choice tasks  → score each continuation; pick argmax.
+    Generative    → decode first 20 tokens, extract numeric answer.
+    """
+    eval_type = TASKS[task_name]["eval_type"]
 
-    if task_name == "gsm8k":
-        expected = sample["label"]
+    # ── Binary (SST-2, BoolQ) ──────────────────────────────────────────────
+    if eval_type == "binary":
+        label_groups = TASKS[task_name]["labels"]   # [[neg words], [pos words]]
+        with torch.no_grad():
+            logits = model(tokens, return_type="logits")
+        last = logits[0, -1]    # [vocab]
+        scores = []
+        for words in label_groups:
+            ids = _label_token_ids(model, words)
+            if ids:
+                scores.append(float(last[ids].max()))
+            else:
+                scores.append(-float("inf"))
+        pred_class = int(np.argmax(scores))
+        return pred_class == sample["correct_class"]
+
+    # ── Multiple-choice / completion (PIQA, ARC, HellaSwag, WinoGrande) ──
+    if eval_type == "choice":
+        choices = sample.get("choices", [])
+        if not choices:
+            return False
+        scores = []
+        for choice in choices:
+            cont_ids   = model.tokenizer.encode(choice, add_special_tokens=False)
+            cont_tok   = torch.tensor([cont_ids], dtype=torch.long, device=tokens.device)
+            scores.append(_score_continuation(model, tokens, cont_tok))
+        pred_class = int(np.argmax(scores))
+        return pred_class == sample["correct_class"]
+
+    # ── Generative (GSM8K) ────────────────────────────────────────────────
+    if eval_type == "generative":
+        expected = sample.get("label", "")
         if not expected:
             return False
-        try:
-            nums = re.findall(r"\d+(?:\.\d+)?", pred)
-            if nums:
-                return abs(float(nums[0]) - float(expected)) < 1e-4
-        except ValueError:
-            pass
+        with torch.no_grad():
+            out = model.generate(tokens, max_new_tokens=20, do_sample=False)
+        new_tokens = out[0, tokens.shape[-1]:]
+        decoded    = model.tokenizer.decode(new_tokens, skip_special_tokens=True)
+        nums = re.findall(r"\d+(?:,\d{3})*(?:\.\d+)?", decoded)
+        if nums:
+            num_str = nums[0].replace(",", "")
+            try:
+                return abs(float(num_str) - float(expected)) < 0.5
+            except ValueError:
+                pass
         return False
 
     return False
@@ -247,32 +415,20 @@ def check_accuracy(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_experiment(
-    model_names:       List[str],
-    task_names:        List[str],
-    n_samples:         int   = 50,
-    output_dir:        str   = "results",
-    device:            str   = "cuda",
-    epsilon_quantile:  float = 0.25,
-    seed:              int   = 42,
+    model_names:      List[str],
+    task_names:       List[str],
+    n_samples:        int   = 50,
+    output_dir:       str   = "results",
+    device:           str   = "cuda",
+    epsilon_quantile: float = 0.25,
+    seed:             int   = 42,
 ) -> List[Dict[str, Any]]:
-    """
-    Core experiment loop.
-
-    For each (model, task):
-      — compute attribution scores on each sample
-      — set a task-level ε from the empirical distribution of scores
-      — re-run path-count DP for every sample with that ε
-      — aggregate metrics and accuracy
-
-    Returns a list of result dicts (one per model×task combination).
-    """
     from path_analyzer import PathAnalyzer, _to_metrics
 
     os.makedirs(output_dir, exist_ok=True)
     results: List[Dict[str, Any]] = []
 
     for model_name in model_names:
-        # ── load model ──
         try:
             model = load_model(model_name, device=device)
         except Exception as exc:
@@ -283,25 +439,27 @@ def run_experiment(
         arch_info = analyzer.architecture_summary()
         log.info("Architecture: %s", arch_info)
 
-        # analytical entropy is constant for the architecture
         ana_metrics = analyzer.analytical_path_distribution()
         log.info(
-            "  Analytical  H=%.4f bits  E[L]=%.2f  τ=%.4f",
-            ana_metrics.entropy, ana_metrics.mean_path_length, ana_metrics.tail_mass_ratio,
+            "  Analytical  H=%.4f bits  E[L]=%.2f  τ=%.4f  max_l=%d",
+            ana_metrics.entropy, ana_metrics.mean_path_length,
+            ana_metrics.tail_mass_ratio, ana_metrics.max_path_len,
         )
 
         for task_name in task_names:
+            if task_name not in TASKS:
+                log.warning("Unknown task '%s' — skipping.", task_name)
+                continue
             log.info("")
             log.info("─── Model=%-35s  Task=%s ───", model_name, task_name)
 
-            # ── load samples ──
             try:
                 samples = load_task_samples(task_name, n_samples=n_samples, seed=seed)
             except Exception as exc:
-                log.error("  Failed to load task %s: %s", task_name, exc)
+                log.error("  Could not load task %s: %s", task_name, exc)
                 continue
 
-            # ── pass 1: attribution scores per sample ──
+            # ── Pass 1: attribution scores + accuracy ──
             per_attn: List[np.ndarray] = []
             per_mlp:  List[np.ndarray] = []
             per_corr: List[bool]       = []
@@ -311,18 +469,18 @@ def run_experiment(
                     tokens = model.to_tokens(
                         sample["prompt"], prepend_bos=True
                     ).to(device)
+                    # truncate long prompts to avoid OOM
+                    if tokens.shape[-1] > 512:
+                        tokens = tokens[:, -512:]
 
-                    # accuracy
-                    corr = check_accuracy(task_name, model, tokens, sample)
-                    per_corr.append(corr)
+                    per_corr.append(check_accuracy(task_name, model, tokens, sample))
 
-                    # attribution
-                    attn_sc, mlp_sc = analyzer.compute_attribution_scores(tokens)
-                    per_attn.append(attn_sc.cpu().float().numpy())
-                    per_mlp.append(mlp_sc.cpu().float().numpy())
+                    a_sc, m_sc = analyzer.compute_attribution_scores(tokens)
+                    per_attn.append(a_sc.cpu().float().numpy())
+                    per_mlp.append(m_sc.cpu().float().numpy())
 
                     if (i + 1) % 10 == 0:
-                        log.info("  … %d/%d samples processed", i + 1, len(samples))
+                        log.info("  … %d/%d samples", i + 1, len(samples))
 
                 except Exception as exc:
                     log.warning("  Sample %d failed (pass 1): %s", i, exc)
@@ -331,66 +489,63 @@ def run_experiment(
                 log.warning("  No valid samples for %s — skipping.", task_name)
                 continue
 
-            # ── task-level epsilon ──
+            # ── Task-level epsilon ──
             all_scores = np.concatenate(
                 [np.concatenate(per_attn), np.concatenate(per_mlp)]
             )
             epsilon = float(np.quantile(all_scores, epsilon_quantile))
-            log.info("  Task-level ε = %.2e  (q=%.2f)", epsilon, epsilon_quantile)
+            log.info("  ε=%.2e  (q=%.2f)", epsilon, epsilon_quantile)
 
-            # ── pass 2: empirical path metrics per sample ──
+            # ── Pass 2: empirical path metrics ──
             emp_H:   List[float] = []
             emp_mu:  List[float] = []
             emp_tau: List[float] = []
 
             for i in range(len(per_attn)):
                 try:
-                    active_attn = (per_attn[i] > epsilon).tolist()
-                    active_mlp  = (per_mlp[i]  > epsilon).tolist()
-                    counts      = analyzer._path_count_dp(active_attn, active_mlp)
-                    metrics     = _to_metrics(counts)
-
-                    emp_H.append(metrics.entropy)
-                    emp_mu.append(metrics.mean_path_length)
-                    emp_tau.append(metrics.tail_mass_ratio)
-
+                    act_a = (per_attn[i] > epsilon).tolist()
+                    act_m = (per_mlp[i]  > epsilon).tolist()
+                    m     = _to_metrics(analyzer._path_count_dp(act_a, act_m))
+                    emp_H.append(m.entropy)
+                    emp_mu.append(m.mean_path_length)
+                    emp_tau.append(m.tail_mass_ratio)
                 except Exception as exc:
                     log.warning("  Sample %d failed (pass 2): %s", i, exc)
 
             if not emp_H:
-                log.warning("  No empirical metrics for %s — skipping.", task_name)
                 continue
 
-            # ── aggregate ──
-            accuracy  = float(np.mean(per_corr))  if per_corr  else 0.0
+            accuracy  = float(np.mean(per_corr))
             mean_H    = float(np.mean(emp_H))
-            std_H     = float(np.std(emp_H))  if len(emp_H) > 1 else 0.0
+            std_H     = float(np.std(emp_H))   if len(emp_H) > 1 else 0.0
             mean_mu   = float(np.mean(emp_mu))
-            finite_tau = [t for t in emp_tau if np.isfinite(t)]
-            mean_tau  = float(np.mean(finite_tau)) if finite_tau else float("inf")
+            finite    = [t for t in emp_tau if np.isfinite(t)]
+            mean_tau  = float(np.mean(finite)) if finite else float("inf")
 
             result: Dict[str, Any] = {
                 "model":                   model_name,
+                "model_params_B":          MODEL_PARAMS.get(model_name, -1),
                 "task":                    task_name,
                 "task_complexity":         TASKS[task_name]["complexity"],
-                "accuracy":                round(accuracy,           4),
-                # analytical (architecture)
+                "accuracy":                round(accuracy,  4),
+                # ── analytical ──
                 "analytical_entropy":      round(ana_metrics.entropy,          4),
                 "analytical_mean_path":    round(ana_metrics.mean_path_length, 4),
                 "analytical_tail_ratio":   round(ana_metrics.tail_mass_ratio,  4),
-                # empirical (active subgraph)
-                "empirical_entropy":       round(mean_H,    4),
-                "empirical_entropy_std":   round(std_H,     4),
-                "empirical_mean_path":     round(mean_mu,   4),
-                "empirical_tail_ratio":    round(mean_tau,  4),
-                # gap
+                # ── empirical ──
+                "empirical_entropy":       round(mean_H,   4),
+                "empirical_entropy_std":   round(std_H,    4),
+                "empirical_mean_path":     round(mean_mu,  4),
+                "empirical_tail_ratio":    round(mean_tau, 4),
+                # ── derived ──
                 "synergy_gap":             round(ana_metrics.entropy - mean_H, 4),
-                # meta
+                # ── meta ──
                 "n_layers":                arch_info["n_layers"],
                 "architecture":            arch_info["architecture"],
                 "epsilon":                 round(float(epsilon), 8),
                 "epsilon_quantile":        epsilon_quantile,
                 "n_samples_used":          len(emp_H),
+                "eval_type":               TASKS[task_name]["eval_type"],
             }
             results.append(result)
 
@@ -400,7 +555,6 @@ def run_experiment(
                 result["synergy_gap"], mean_mu,
             )
 
-        # free VRAM
         del model
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -409,10 +563,10 @@ def run_experiment(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CSV export
+# CSV
 # ─────────────────────────────────────────────────────────────────────────────
 
-def save_csv(results: List[Dict[str, Any]], path: str) -> None:
+def save_csv(results: List[Dict], path: str) -> None:
     if not results:
         log.warning("No results — CSV not written.")
         return
@@ -421,157 +575,182 @@ def save_csv(results: List[Dict[str, Any]], path: str) -> None:
         writer = csv.DictWriter(f, fieldnames=list(results[0].keys()))
         writer.writeheader()
         writer.writerows(results)
-    log.info("Results saved → %s", path)
+    log.info("Results → %s", path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Visualisation
+# Visualisation  (4-panel figure)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def plot_results(
-    results:     List[Dict[str, Any]],
-    output_path: str = "results/entropy_vs_complexity.png",
-) -> None:
-    """
-    3-panel figure:
-      Left   — Empirical Path Entropy H(π̂) vs task complexity
-      Centre — Synergy Gap (H_ana − H_emp) vs task complexity
-      Right  — Mean Path Length E[L]  vs task complexity
-
-    X-axis: 0=SST-2 (Low), 1=BoolQ (Medium), 2=GSM8K (High)
-    One series per model, with ±1 std error bars on the left panel.
-    """
+def plot_results(results: List[Dict], output_path: str = "results/entropy_vs_complexity.png") -> None:
     if not results:
-        log.warning("No results — plot not generated.")
+        log.warning("No results — plot skipped.")
         return
 
-    models       = sorted({r["model"]          for r in results})
+    models       = sorted({r["model"] for r in results})
     complexities = sorted({r["task_complexity"] for r in results})
 
-    fig, axes = plt.subplots(1, 3, figsize=(17, 5.5))
-    fig.suptitle(
-        "Path Distribution Theory  ·  Empirical Analysis",
-        fontsize=15, fontweight="bold", y=1.02,
-    )
-
     cmap    = plt.get_cmap("tab10")
-    colors  = [cmap(i) for i in range(len(models))]
-    markers = ["o", "s", "^", "D", "v", "P"]
-    xticks  = complexities
-    xlabels = [COMPLEXITY_LABELS[c] for c in complexities]
+    colors  = {m: cmap(i % 10) for i, m in enumerate(models)}
+    markers = ["o", "s", "^", "D", "v", "P", "X", "h"]
 
-    def _series(model_rows, key):
-        xs, ys = [], []
+    fig, axes = plt.subplots(2, 2, figsize=(16, 11))
+    fig.suptitle("Path Distribution Theory — Empirical Results", fontsize=14, fontweight="bold")
+    ax1, ax2, ax3, ax4 = axes.flat
+
+    def _means(rows, key):
+        xs, ys, es = [], [], []
         for c in complexities:
-            vals = [r[key] for r in model_rows if r["task_complexity"] == c]
+            vals = [r[key] for r in rows if r["task_complexity"] == c]
             if vals:
                 xs.append(c)
                 ys.append(float(np.mean(vals)))
-        return xs, ys
+                es.append(float(np.std(vals)) if len(vals) > 1 else 0.0)
+        return xs, ys, es
 
-    # ── Panel 1: Empirical entropy ──
-    ax = axes[0]
+    xlabels = [COMPLEXITY_TASK_LABELS.get(c, str(c)) for c in complexities]
+
     for idx, mname in enumerate(models):
-        rows = [r for r in results if r["model"] == mname]
-        xs, ys = _series(rows, "empirical_entropy")
-        yerr   = [np.mean([r["empirical_entropy_std"]
-                           for r in rows if r["task_complexity"] == c])
-                  for c in complexities if any(r["task_complexity"] == c for r in rows)]
-        if xs:
-            label = mname.split("/")[-1]
-            ax.errorbar(xs, ys, yerr=yerr,
-                        marker=markers[idx % len(markers)],
-                        color=colors[idx], label=label,
-                        capsize=4, linewidth=2, markersize=8)
+        rows  = [r for r in results if r["model"] == mname]
+        label = mname.split("/")[-1]
+        mk    = markers[idx % len(markers)]
+        col   = colors[mname]
 
-    ax.set_xlabel("Task Complexity", fontsize=11)
-    ax.set_ylabel("H(π̂)  [bits]", fontsize=11)
-    ax.set_title("Empirical Path Entropy", fontsize=12)
-    ax.set_xticks(xticks); ax.set_xticklabels(xlabels, rotation=12, ha="right")
-    ax.legend(fontsize=9); ax.grid(alpha=0.3)
+        # Panel 1 — Empirical entropy
+        xs, ys, es = _means(rows, "empirical_entropy")
+        ax1.errorbar(xs, ys, yerr=es, marker=mk, color=col,
+                     label=label, capsize=4, linewidth=2, markersize=8)
 
-    # ── Panel 2: Synergy gap ──
-    ax = axes[1]
-    for idx, mname in enumerate(models):
-        rows = [r for r in results if r["model"] == mname]
-        xs, ys = _series(rows, "synergy_gap")
-        if xs:
-            ax.plot(xs, ys,
-                    marker=markers[idx % len(markers)],
-                    color=colors[idx], label=mname.split("/")[-1],
-                    linewidth=2, markersize=8)
+        # Panel 2 — Synergy Gap
+        xs, ys, _ = _means(rows, "synergy_gap")
+        ax2.plot(xs, ys, marker=mk, color=col, label=label, linewidth=2, markersize=8)
 
-    ax.set_xlabel("Task Complexity", fontsize=11)
-    ax.set_ylabel("H_ana − H_emp  [bits]", fontsize=11)
-    ax.set_title("Synergy Gap", fontsize=12)
-    ax.set_xticks(xticks); ax.set_xticklabels(xlabels, rotation=12, ha="right")
-    ax.legend(fontsize=9); ax.grid(alpha=0.3)
-    ax.axhline(0, color="grey", linestyle="--", linewidth=1)
-
-    # ── Panel 3: Mean path length ──
-    ax = axes[2]
-    for idx, mname in enumerate(models):
-        rows = [r for r in results if r["model"] == mname]
-        xs, ys = _series(rows, "empirical_mean_path")
-        if xs:
-            ax.plot(xs, ys,
-                    marker=markers[idx % len(markers)],
-                    color=colors[idx], label=mname.split("/")[-1],
-                    linewidth=2, markersize=8)
-
-    # Add reference line: analytical mean path length (per model)
-    for idx, mname in enumerate(models):
-        rows = [r for r in results if r["model"] == mname]
+        # Panel 3 — Mean path length
+        xs, ys, _ = _means(rows, "empirical_mean_path")
+        ax3.plot(xs, ys, marker=mk, color=col, label=label, linewidth=2, markersize=8)
         if rows:
             ana_mu = rows[0]["analytical_mean_path"]
-            ax.axhline(
-                ana_mu, color=colors[idx], linestyle=":",
-                linewidth=1.2, alpha=0.6,
-                label=f"{mname.split('/')[-1]} (ana.)",
-            )
+            ax3.axhline(ana_mu, color=col, linestyle=":", linewidth=1, alpha=0.5)
 
-    ax.set_xlabel("Task Complexity", fontsize=11)
-    ax.set_ylabel("E[L]", fontsize=11)
-    ax.set_title("Mean Path Length  (dotted = analytical)", fontsize=12)
-    ax.set_xticks(xticks); ax.set_xticklabels(xlabels, rotation=12, ha="right")
-    ax.legend(fontsize=8); ax.grid(alpha=0.3)
+        # Panel 4 — Accuracy
+        xs, ys, _ = _means(rows, "accuracy")
+        ax4.plot(xs, ys, marker=mk, color=col, label=label, linewidth=2, markersize=8)
+
+    for ax, title, ylabel in [
+        (ax1, "Empirical Path Entropy",       "H(π̂)  [bits]"),
+        (ax2, "Synergy Gap  ΔH = H(π)−H(π̂)", "ΔH  [bits]"),
+        (ax3, "Mean Path Length  (dotted=analytical)", "E[L]"),
+        (ax4, "Task Accuracy",                "Accuracy"),
+    ]:
+        ax.set_title(title, fontsize=12)
+        ax.set_xlabel("Task Complexity", fontsize=10)
+        ax.set_ylabel(ylabel, fontsize=10)
+        ax.set_xticks(complexities)
+        ax.set_xticklabels(xlabels, fontsize=9, ha="center")
+        ax.legend(fontsize=8, ncol=2)
+        ax.grid(alpha=0.3)
+
+    ax2.axhline(0, color="grey", linestyle="--", linewidth=1)
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    log.info("Plot saved → %s", output_path)
+    log.info("Plot → %s", output_path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Summary printer
+# Scaling plot  (H_emp vs model size, per task complexity)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def print_summary(results: List[Dict[str, Any]]) -> None:
+def plot_scaling(results: List[Dict], output_path: str = "results/scaling_curves.png") -> None:
+    """Entropy and Synergy Gap vs log(model size) — one panel per complexity level."""
+    rows_with_size = [r for r in results if r.get("model_params_B", -1) > 0]
+    if not rows_with_size:
+        return
+
+    complexities = sorted({r["task_complexity"] for r in rows_with_size})
+    cmap   = plt.get_cmap("Set1")
+    colors = {c: cmap(i) for i, c in enumerate(complexities)}
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig.suptitle("Scaling Behaviour of Path Entropy Metrics", fontsize=13, fontweight="bold")
+
+    for c in complexities:
+        c_rows = sorted(
+            [r for r in rows_with_size if r["task_complexity"] == c],
+            key=lambda r: r["model_params_B"],
+        )
+        if not c_rows:
+            continue
+        sizes  = [r["model_params_B"] for r in c_rows]
+        h_emp  = [r["empirical_entropy"] for r in c_rows]
+        h_gap  = [r["synergy_gap"]       for r in c_rows]
+        col    = colors[c]
+        label  = COMPLEXITY_LABELS[c]
+
+        ax1.plot(sizes, h_emp, "o-", color=col, label=label, linewidth=2, markersize=7)
+        ax2.plot(sizes, h_gap, "s--", color=col, label=label, linewidth=2, markersize=7)
+
+    for ax, title, ylabel in [
+        (ax1, "Empirical Entropy vs Model Size", "H(π̂)  [bits]"),
+        (ax2, "Synergy Gap vs Model Size",        "ΔH  [bits]"),
+    ]:
+        ax.set_xscale("log")
+        ax.set_xlabel("Model size  [B params]", fontsize=11)
+        ax.set_ylabel(ylabel, fontsize=11)
+        ax.set_title(title, fontsize=12)
+        ax.legend(fontsize=10)
+        ax.grid(alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    log.info("Scaling plot → %s", output_path)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Summary table
+# ─────────────────────────────────────────────────────────────────────────────
+
+def print_summary(results: List[Dict]) -> None:
     if not results:
         return
-    col_w = 28
-    header = (
-        f"{'Model':{col_w}} {'Task':8} {'Acc':6} "
-        f"{'H_ana':7} {'H_emp':7} {'Gap':7} {'E[L]':6} {'τ':7}"
-    )
+    w = 28
+    hdr = (f"{'Model':{w}} {'Task':14} {'Acc':6} "
+           f"{'H_ana':7} {'H_emp':7} {'Gap':7} {'E[L]':6} {'τ':7}")
+    bar = "=" * len(hdr)
     print()
-    print("=" * len(header))
+    print(bar)
     print("  PATH DISTRIBUTION THEORY — RESULTS SUMMARY")
-    print("=" * len(header))
-    print(header)
-    print("─" * len(header))
-    for r in results:
-        print(
-            f"{r['model'].split('/')[-1]:{col_w}} "
-            f"{r['task']:8} "
-            f"{r['accuracy']:6.3f} "
-            f"{r['analytical_entropy']:7.3f} "
-            f"{r['empirical_entropy']:7.3f} "
-            f"{r['synergy_gap']:7.3f} "
-            f"{r['empirical_mean_path']:6.2f} "
-            f"{r['empirical_tail_ratio']:7.4f}"
-        )
-    print("=" * len(header))
+    print(bar)
+    print(hdr)
+    print("─" * len(hdr))
+
+    # group by complexity so the table reads Low→Medium→High
+    for c in sorted({r["task_complexity"] for r in results}):
+        c_rows = [r for r in results if r["task_complexity"] == c]
+        if c_rows:
+            print(f"  ── {COMPLEXITY_LABELS[c]} complexity {'─'*40}")
+        for r in c_rows:
+            tau_str = f"{r['empirical_tail_ratio']:.4f}" if np.isfinite(r["empirical_tail_ratio"]) else "  inf "
+            print(
+                f"  {r['model'].split('/')[-1]:{w}} "
+                f"{r['task']:14} "
+                f"{r['accuracy']:6.3f} "
+                f"{r['analytical_entropy']:7.3f} "
+                f"{r['empirical_entropy']:7.3f} "
+                f"{r['synergy_gap']:7.3f} "
+                f"{r['empirical_mean_path']:6.2f} "
+                f"{tau_str}"
+            )
+    print(bar)
+
+    # Correlation summary: does Synergy Gap increase with complexity?
+    if len(results) >= 3:
+        complexities = [r["task_complexity"] for r in results]
+        gaps         = [r["synergy_gap"]       for r in results]
+        corr = float(np.corrcoef(complexities, gaps)[0, 1]) if len(set(complexities)) > 1 else 0.0
+        print(f"\n  Pearson r(complexity, ΔH) = {corr:+.3f}  "
+              f"({'↑ gap grows with complexity' if corr > 0.1 else '↓ gap shrinks' if corr < -0.1 else '— no clear trend'})")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -580,66 +759,63 @@ def print_summary(results: List[Dict[str, Any]]) -> None:
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Path Distribution Theory — mechanistic interpretability pipeline"
+        description="Path Distribution Theory — mechanistic interpretability pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Model groups (--model_group):
+  pythia   EleutherAI/pythia-70m … pythia-6.9b  (6 scales, same architecture)
+  gpt2     gpt2 … gpt2-xl                       (4 scales, same architecture)
+  neo      gpt-neo-125m … gpt-j-6b              (3 sequential + 1 parallel)
+  large    Llama-3-8B, gpt-j-6b, falcon-7b
+  all      pythia + gpt2 + neo
+
+Tasks available:
+  Low:    sst2, piqa
+  Medium: boolq, arc_easy, winogrande
+  High:   hellaswag, arc_challenge, gsm8k
+""",
     )
-    p.add_argument(
-        "--models", type=str, default=",".join(DEFAULT_MODELS),
-        help="Comma-separated HuggingFace model IDs (default: Llama-3-8B, GPT-J-6B, Falcon-7B)",
-    )
-    p.add_argument(
-        "--tasks", type=str, default=",".join(TASKS.keys()),
-        help="Comma-separated task names: sst2,boolq,gsm8k  (default: all three)",
-    )
-    p.add_argument(
-        "--n_samples", type=int, default=50,
-        help="Samples per task  (default: 50)",
-    )
-    p.add_argument(
-        "--output_dir", type=str, default="results",
-        help="Directory for CSV and plot outputs  (default: results/)",
-    )
-    p.add_argument(
-        "--device", type=str,
-        default="cuda" if torch.cuda.is_available() else "cpu",
-        help="Compute device  (default: cuda if available)",
-    )
-    p.add_argument(
-        "--epsilon_quantile", type=float, default=0.25,
-        help="Quantile of attribution scores used to set ε  (default: 0.25 → top-75%% active)",
-    )
-    p.add_argument(
-        "--seed", type=int, default=42,
-        help="Random seed for dataset shuffling  (default: 42)",
-    )
-    p.add_argument(
-        "--dtype", type=str, default="float16",
-        choices=["float16", "bfloat16", "float32"],
-        help="Model dtype for fp-fallback load  (default: float16)",
-    )
+    p.add_argument("--models",       type=str, default="",
+                   help="Comma-separated HuggingFace model IDs")
+    p.add_argument("--model_group",  type=str, default="",
+                   choices=list(MODEL_GROUPS.keys()) + [""],
+                   help="Predefined model group (overridden by --models)")
+    p.add_argument("--tasks",        type=str, default=",".join(DEFAULT_TASKS),
+                   help=f"Comma-separated tasks (default: {','.join(DEFAULT_TASKS)})")
+    p.add_argument("--n_samples",    type=int, default=50)
+    p.add_argument("--output_dir",   type=str, default="results")
+    p.add_argument("--device",       type=str,
+                   default="cuda" if torch.cuda.is_available() else "cpu")
+    p.add_argument("--epsilon_quantile", type=float, default=0.25,
+                   help="AtP threshold quantile (default 0.25 → top-75%% active)")
+    p.add_argument("--seed",         type=int, default=42)
+    p.add_argument("--dtype",        type=str, default="float16",
+                   choices=["float16", "bfloat16", "float32"])
     return p.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
 
-    model_names = [m.strip() for m in args.models.split(",") if m.strip()]
-    task_names  = [t.strip() for t in args.tasks.split(",")  if t.strip()]
+    # resolve model list
+    if args.models:
+        model_names = [m.strip() for m in args.models.split(",") if m.strip()]
+    elif args.model_group:
+        model_names = MODEL_GROUPS[args.model_group]
+    else:
+        model_names = MODEL_GROUPS["large"]
 
-    dtype_map = {
-        "float16":  torch.float16,
-        "bfloat16": torch.bfloat16,
-        "float32":  torch.float32,
-    }
+    task_names = [t.strip() for t in args.tasks.split(",") if t.strip()]
 
-    log.info("Device    : %s", args.device)
-    log.info("Models    : %s", model_names)
-    log.info("Tasks     : %s", task_names)
-    log.info("Samples   : %d per task", args.n_samples)
-    log.info("ε-quantile: %.2f", args.epsilon_quantile)
+    log.info("Device       : %s", args.device)
+    log.info("Models (%d)  : %s", len(model_names), model_names)
+    log.info("Tasks  (%d)  : %s", len(task_names),  task_names)
+    log.info("Samples/task : %d", args.n_samples)
+    log.info("ε quantile   : %.2f", args.epsilon_quantile)
 
     if args.device.startswith("cuda") and torch.cuda.is_available():
-        prop = torch.cuda.get_device_properties(0)
-        log.info("GPU       : %s  (%.1f GB VRAM)", prop.name, prop.total_memory / 1e9)
+        p = torch.cuda.get_device_properties(0)
+        log.info("GPU          : %s  (%.1f GB)", p.name, p.total_memory / 1e9)
 
     results = run_experiment(
         model_names=model_names,
@@ -651,11 +827,13 @@ def main() -> None:
         seed=args.seed,
     )
 
-    csv_path  = os.path.join(args.output_dir, "path_metrics.csv")
-    plot_path = os.path.join(args.output_dir, "entropy_vs_complexity.png")
+    csv_path     = os.path.join(args.output_dir, "path_metrics.csv")
+    plot_path    = os.path.join(args.output_dir, "entropy_vs_complexity.png")
+    scaling_path = os.path.join(args.output_dir, "scaling_curves.png")
 
     save_csv(results, csv_path)
     plot_results(results, plot_path)
+    plot_scaling(results, scaling_path)
     print_summary(results)
 
 
