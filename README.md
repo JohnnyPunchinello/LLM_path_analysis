@@ -67,6 +67,29 @@ python experiment_runner.py \
     --tasks  sst2,boolq,gsm8k \
     --n_samples 50
 ```
+```bash
+# Quick smoke test (CPU, 4 small models, 3 tasks)
+python synergy_gap_experiment.py --model_group small \
+    --tasks sst2,boolq,hellaswag --n_samples 5 --device cpu
+
+# Sequential vs parallel architecture contrast
+python synergy_gap_experiment.py --model_group neo \
+    --tasks sst2,piqa,boolq,arc_easy,copa,hellaswag,arc_challenge,lambada \
+    --n_samples 50
+
+# OPT (post-LN) vs Pythia (pre-RMSNorm) normalization contrast
+python synergy_gap_experiment.py \
+    --models "facebook/opt-125m,facebook/opt-1.3b,EleutherAI/pythia-160m,EleutherAI/pythia-1b" \
+    --tasks sst2,cola,boolq,arc_easy,openbookqa,hellaswag,lambada --n_samples 50
+
+# Resume after interruption
+python synergy_gap_experiment.py --model_group pythia \
+    --tasks sst2,piqa,cola,boolq,arc_easy,copa,hellaswag,lambada \
+    --n_samples 50 --resume results/synergy_gap_results.csv
+
+# Regenerate figures from existing CSV (no model loading)
+python synergy_gap_experiment.py --plot_only results/synergy_gap_results.csv
+```
 
 Outputs are written to `results/`:
 - `path_metrics.csv` — full results table
