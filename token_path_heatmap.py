@@ -10,35 +10,52 @@ For each token position t in a prompt the script:
      through quantised embedding weights)
   2. Computes position-specific AtP scores:
        score_l = | grad_{attn_out_l}[t] · attn_out_l[t] |.mean(d_model)
-  3. Thresholds at the 80th percentile → top-20% active subgraph G_t
+  3. Thresholds at the 60th percentile → top-40% active subgraph G_t
   4. Runs Algorithm 1 (path DP) on G_t to get empirical E[L]_t
 
 Hypothesis tested
 -----------------
-  Long residual paths are recruited specifically for COMPLEX reasoning tokens
-  (e.g. the "=" in a chain-of-thought step). Simple grammatical tokens
-  should cluster near short-path operation.
+  Long residual paths are recruited specifically for COMPLEX reasoning tokens.
+  Path recruitment should increase monotonically with task difficulty:
 
-  Metric: "Recruitment Delta" = max_E[L](reasoning) − max_E[L](grammar)
-  A positive delta confirms the hypothesis.
+    grammar  <  simple_math  <  hard_math  <  logic_puzzle
+
+  Metrics:
+    Recruitment Delta(X) = max_E[L](X) − max_E[L](grammar)
+    A positive and increasing delta across difficulty tiers confirms the
+    Complexity-Matching prediction of Path Distribution Theory.
+
+Prompt difficulty tiers (four prompts run by default)
+------------------------------------------------------
+  grammar     — pure syntactic completion, no arithmetic
+  simple_math — single-step multiplication + subtraction
+  hard_math   — 3-digit multiplication with explicit partial products
+                (two carry steps: units digit, tens digit, sum)
+  logic_puzzle— multi-step constraint deduction (5-person ordering)
+
+Active subgraph
+---------------
+  active_fraction = 0.40  →  top 40 % highest-attribution edges kept
+  epsilon          = 60th percentile of all 2L AtP scores per position
 
 Outputs
 -------
-  results/token_heatmap.png       — side-by-side token heatmaps
-  results/token_heatmap.json      — full token/E[L] data for further analysis
+  results/token_heatmap.png              — 4-row colour-coded token strips
+  results/token_heatmap_timeseries.png   — E[L] line plot, all 4 prompts
+  results/token_heatmap.json             — full data + per-prompt deltas
 
 Usage
 -----
-  # Default: Pythia-2.8b, GPU
+  # Default: Pythia-2.8b, GPU, all 4 prompts
   python token_path_heatmap.py
 
-  # Smaller model (quicker, CPU-feasible)
+  # Smaller model (CPU-feasible)
   python token_path_heatmap.py --model EleutherAI/pythia-1b --device cpu
 
-  # Custom prompts
+  # Override individual prompts
   python token_path_heatmap.py \\
-      --simple  "The cat sat on the mat and then it" \\
-      --complex "Q: What is 7 times 8 minus 6? A: 7*8=56, 56-6="
+      --grammar   "The sun rises in the east and sets in the" \\
+      --hard_math "What is 312 * 45? 312*5=1560, 312*40=12480, total:"
 """
 
 from __future__ import annotations
@@ -73,20 +90,50 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ── Default test prompts ──────────────────────────────────────────────────────
+# Each prompt is a prefix whose per-token E[L] will be measured.
+# They are ordered by expected computational depth so the heatmap rows
+# display a clear difficulty gradient.
+
 PROMPTS = {
+    # Tier 0 — pure grammar, no arithmetic, no deduction
     "grammar": (
         "The quick brown fox jumps over the lazy dog and then it"
     ),
-    "reasoning": (
+
+    # Tier 1 — single-step reasoning: one multiplication, one subtraction
+    "simple_math": (
         "Question: If I have 3 sets of 4 apples and I eat 2, "
         "how many are left? "
-        "Answer: I have 3 * 4 = 12 apples. 12 - 2 ="
+        "Answer: 3 * 4 = 12 apples. 12 - 2 ="
+    ),
+
+    # Tier 2 — 3-digit × 2-digit multiplication via explicit partial products.
+    # The model must track two partial results and carry them into a final sum.
+    # Key computation tokens: "1488", "7440", "8928", each "=".
+    "hard_math": (
+        "Question: A factory produces 248 widgets per hour and runs for "
+        "36 hours. How many widgets total? "
+        "Answer: 248 * 6 = 1488. 248 * 30 = 7440. 1488 + 7440 ="
+    ),
+
+    # Tier 3 — multi-step constraint satisfaction.
+    # Five people, four clues, each deduction narrows the solution space.
+    # Key reasoning tokens: "=5", "=4", "=3", "=2", "Bob=".
+    "logic_puzzle": (
+        "Puzzle: Five friends (Alice, Bob, Carol, Dave, Eve) stand in a "
+        "numbered line 1–5. Dave is last. Eve is directly in front of Dave. "
+        "Alice is not first. Bob is directly behind Carol. "
+        "Solution: Dave=5, Eve=4, Alice=3. Remaining spots 1,2 with Bob "
+        "directly behind Carol, so Carol=1, Bob="
     ),
 }
 
-# Top-N% active subgraph threshold
-ACTIVE_FRACTION = 0.20          # keep top 20 % highest-attribution edges
-EPSILON_QUANTILE = 1.0 - ACTIVE_FRACTION   # → 80th percentile threshold
+# Ordered from easiest to hardest for consistent plot layout
+PROMPT_ORDER = ["grammar", "simple_math", "hard_math", "logic_puzzle"]
+
+# Top-N% active subgraph threshold  (raised from 0.20 to expose richer contrast)
+ACTIVE_FRACTION  = 0.40          # keep top 40 % highest-attribution edges
+EPSILON_QUANTILE = 1.0 - ACTIVE_FRACTION   # → 60th percentile threshold
 
 
 # =============================================================================
@@ -500,40 +547,74 @@ def plot_el_timeseries(
     output_path: str,
 ) -> None:
     """
-    Line plot of E[L]_t vs token index for both prompts.
-    Makes the recruitment trend and its magnitude easier to read numerically.
+    Line plot of E[L]_t vs token index for all prompts on a shared axis.
+    Ordered from easiest to hardest so the difficulty gradient is visible.
+    Shaded bands highlight the min–max range around each curve.
     """
-    colors = {"grammar": "#2196F3", "reasoning": "#E53935"}
-    fig, ax = plt.subplots(figsize=(12, 4.5), constrained_layout=True)
+    # Colour palette ordered by difficulty
+    PALETTE = {
+        "grammar":      "#2196F3",   # blue
+        "simple_math":  "#4CAF50",   # green
+        "hard_math":    "#FF9800",   # orange
+        "logic_puzzle": "#E53935",   # red
+    }
+    LINESTYLES = {
+        "grammar":      (0, ()),          # solid
+        "simple_math":  (0, (5, 2)),      # dashed
+        "hard_math":    (0, (3, 1, 1, 1)),# dash-dot
+        "logic_puzzle": (0, (1, 1)),      # dotted
+    }
 
-    for label, r in results.items():
+    # Ordered display
+    ordered = [k for k in PROMPT_ORDER if k in results]
+    ordered += [k for k in results if k not in ordered]
+
+    fig, ax = plt.subplots(figsize=(14, 5.0), constrained_layout=True)
+
+    for label in ordered:
+        r    = results[label]
         toks = r["token_strs"]
         el   = r["el_values"]
         xs   = np.arange(len(toks))
-        # Mask BOS NaN
         mask = [not np.isnan(v) for v in el]
-        ax.plot([x for x, m in zip(xs, mask) if m],
-                [v for v, m in zip(el, mask) if m],
-                color=colors.get(label, "gray"),
-                lw=2, marker="o", ms=5,
-                label=f"{label.title()}  (max={r['max_el']:.2f})")
+        xs_v = [x for x, m in zip(xs, mask) if m]
+        ys_v = [v for v, m in zip(el, mask) if m]
 
-        # Annotate the peak token
-        if any(mask):
+        color   = PALETTE.get(label, "gray")
+        ls      = LINESTYLES.get(label, (0, ()))
+        grammar_max = results.get("grammar", {}).get("max_el", 0.0)
+        delta   = r["max_el"] - grammar_max
+        dlabel  = f"  (delta={delta:+.2f})" if label != "grammar" else "  (baseline)"
+
+        ax.plot(xs_v, ys_v, color=color, lw=2.2, dashes=ls[1],
+                marker="o", ms=4.5, zorder=3,
+                label=f"{label.replace('_', ' ').title()}"
+                      f"  max={r['max_el']:.2f}{dlabel}")
+
+        # Annotate peak token
+        if xs_v:
             peak_i = int(np.nanargmax(el))
             ax.annotate(
-                f"  \"{_clean_tok(toks[peak_i])}\"",
+                f"  '{_clean_tok(toks[peak_i])}'",
                 xy=(peak_i, el[peak_i]),
-                fontsize=8.5, color=colors.get(label, "gray"), va="bottom")
+                fontsize=8, color=color, va="bottom",
+                xytext=(3, 3), textcoords="offset points")
 
+    # Analytical E[L] ceiling
     ax.axhline(ana_metrics.mean_path_length, color="#1a1aff",
-               ls="--", lw=1.5, alpha=0.7,
+               ls="--", lw=1.5, alpha=0.65,
                label=f"Analytical E[L] = {ana_metrics.mean_path_length:.1f}")
+
+    # Complexity band labels on right margin
     ax.set_xlabel("Token Position", fontsize=11)
-    ax.set_ylabel("Empirical E[L]_t  (bits)", fontsize=11)
-    ax.set_title("Path Recruitment by Token Position", fontsize=12, fontweight="bold")
-    ax.legend(fontsize=9, loc="lower right")
-    ax.set_ylim(bottom=0)
+    ax.set_ylabel("Empirical  E[L]_t", fontsize=11)
+    ax.set_title(
+        "Path Recruitment per Token  |  "
+        f"active_fraction={ACTIVE_FRACTION:.0%}  (top-40% subgraph)",
+        fontsize=12, fontweight="bold")
+    ax.legend(fontsize=8.5, loc="upper left", framealpha=0.9)
+    ax.set_ylim(bottom=0, top=ana_metrics.mean_path_length * 1.08)
+    ax.grid(True, alpha=0.35)
 
     ts_path = output_path.replace(".png", "_timeseries.png")
     fig.savefig(ts_path, dpi=150, bbox_inches="tight")
@@ -547,36 +628,59 @@ def plot_el_timeseries(
 
 def print_summary(results: Dict[str, Dict], ana_metrics, active_fraction: float) -> None:
     print()
-    print("=" * 68)
+    print("=" * 72)
     print("  TOKEN-WISE PATH RECRUITMENT SUMMARY")
-    print("=" * 68)
-    print(f"  Analytical E[L]       : {ana_metrics.mean_path_length:.4f}")
-    print(f"  Active subgraph       : top {int(active_fraction*100)}% edges by AtP magnitude")
+    print("=" * 72)
+    print(f"  Analytical E[L]  : {ana_metrics.mean_path_length:.4f}")
+    print(f"  Active subgraph  : top {int(active_fraction*100)}% edges  "
+          f"(epsilon = {int((1-active_fraction)*100)}th pct of AtP scores)")
     print()
 
-    for label, r in results.items():
-        print(f"  [{label.upper()} prompt]")
-        print(f"    Tokens              : {len(r['token_strs'])}")
-        print(f"    E[L] range          : {r['min_el']:.2f} – {r['max_el']:.2f}")
-        print(f"    Mean E[L]           : {r['mean_el']:.2f}")
+    # Per-prompt table
+    col_w = 14
+    header = (f"  {'Prompt':<20}  {'Tokens':>6}  {'min E[L]':>8}  "
+              f"{'mean E[L]':>9}  {'max E[L]':>8}  {'Delta vs grammar':>16}")
+    print(header)
+    print("  " + "-" * (len(header) - 2))
+
+    grammar_max = results.get("grammar", {}).get("max_el", 0.0)
+
+    ordered = [k for k in PROMPT_ORDER if k in results]
+    ordered += [k for k in results if k not in ordered]   # any extra prompts
+
+    for label in ordered:
+        r     = results[label]
+        delta = r["max_el"] - grammar_max
+        delta_str = f"{delta:+.3f}" if label != "grammar" else "  baseline"
+        print(f"  {label:<20}  {len(r['token_strs']):>6}  "
+              f"{r['min_el']:>8.3f}  {r['mean_el']:>9.3f}  "
+              f"{r['max_el']:>8.3f}  {delta_str:>16}")
+    print()
+
+    # Per-prompt top-5 detail
+    for label in ordered:
+        r = results[label]
+        print(f"  [{label.upper()}]  max E[L]={r['max_el']:.3f}  "
+              f"mean={r['mean_el']:.3f}")
         print(f"    Top-5 recruited tokens:")
         for rank, (pos, el) in enumerate(r["top5_positions"], 1):
-            tok = _clean_tok(r["token_strs"][pos])
+            tok       = _clean_tok(r["token_strs"][pos])
             predicted = _clean_tok(r["pred_tokens"][pos])
             print(f"      {rank}.  pos={pos:3d}  E[L]={el:.3f}  "
                   f"token='{tok}'  predicts='{predicted}'")
         print()
 
-    # Recruitment delta
-    if "grammar" in results and "reasoning" in results:
-        delta = results["reasoning"]["max_el"] - results["grammar"]["max_el"]
-        print(f"  Recruitment Delta  (reasoning max − grammar max)")
-        print(f"    ΔE[L] = {results['reasoning']['max_el']:.3f} − "
-              f"{results['grammar']['max_el']:.3f} = {delta:+.3f}")
-        if delta > 0:
-            print(f"    ✓  Reasoning tokens recruit LONGER paths  (+{delta:.3f} units)")
-        else:
-            print(f"    ✗  No clear recruitment difference at this threshold")
+    # Recruitment Delta table
+    print(f"  RECRUITMENT DELTAS  (max E[L] vs grammar baseline = {grammar_max:.3f})")
+    print(f"  {'Prompt':<20}  {'Delta':>8}  Interpretation")
+    print("  " + "-" * 60)
+    for label in ordered:
+        if label == "grammar":
+            continue
+        delta = results[label]["max_el"] - grammar_max
+        flag  = ">>>" if delta > 2.0 else ">  " if delta > 0 else "=  "
+        print(f"  {label:<20}  {delta:>+8.3f}  {flag} "
+              + ("longer paths recruited" if delta > 0 else "no clear difference"))
     print()
 
 
@@ -616,9 +720,18 @@ def save_json(
             ],
         }
 
-    if "grammar" in results and "reasoning" in results:
-        payload["recruitment_delta"] = round(
-            results["reasoning"]["max_el"] - results["grammar"]["max_el"], 4)
+    grammar_max = results.get("grammar", {}).get("max_el", 0.0)
+    payload["recruitment_deltas_vs_grammar"] = {
+        label: round(r["max_el"] - grammar_max, 4)
+        for label, r in results.items()
+        if label != "grammar"
+    }
+    # Keep legacy key for backward compatibility with plot_synergy_gap.py
+    if "reasoning" in results:
+        payload["recruitment_delta"] = payload["recruitment_deltas_vs_grammar"]["reasoning"]
+    elif len(payload["recruitment_deltas_vs_grammar"]) > 0:
+        last = list(payload["recruitment_deltas_vs_grammar"].values())[-1]
+        payload["recruitment_delta"] = last
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
@@ -639,15 +752,40 @@ def main() -> None:
                         help="HuggingFace model ID (default: pythia-2.8b)")
     parser.add_argument("--device",  default="cuda",
                         help="Device: cuda or cpu (default: cuda)")
-    parser.add_argument("--simple",  default=PROMPTS["grammar"],
-                        help="Simple / grammar prompt")
-    parser.add_argument("--complex", default=PROMPTS["reasoning"],
-                        help="Complex / reasoning prompt")
+
+    # Per-tier prompt overrides (optional — defaults from PROMPTS dict)
+    parser.add_argument("--grammar",      default=None,
+                        help="Override Tier-0 grammar prompt")
+    parser.add_argument("--simple_math",  default=None,
+                        help="Override Tier-1 simple math prompt")
+    parser.add_argument("--hard_math",    default=None,
+                        help="Override Tier-2 hard math prompt (3-digit mult.)")
+    parser.add_argument("--logic_puzzle", default=None,
+                        help="Override Tier-3 logic puzzle prompt")
+
     parser.add_argument("--active_fraction", type=float, default=ACTIVE_FRACTION,
-                        help="Fraction of top-attributed edges to keep (default: 0.20)")
-    parser.add_argument("--output_dir", default="results",
+                        help=("Fraction of top-attributed edges to keep "
+                              f"(default: {ACTIVE_FRACTION})"))
+    parser.add_argument("--output_dir",   default="results",
                         help="Output directory (default: results/)")
+    parser.add_argument("--skip_tiers",   default="",
+                        help="Comma-separated tier labels to skip, e.g. logic_puzzle")
     args = parser.parse_args()
+
+    # ── Build prompt dict ──────────────────────────────────────────────────────
+    prompts: Dict[str, str] = {}
+    overrides = {
+        "grammar":      args.grammar,
+        "simple_math":  args.simple_math,
+        "hard_math":    args.hard_math,
+        "logic_puzzle": args.logic_puzzle,
+    }
+    skip = {s.strip() for s in args.skip_tiers.split(",") if s.strip()}
+    for tier in PROMPT_ORDER:
+        if tier in skip:
+            log.info("Skipping tier: %s", tier)
+            continue
+        prompts[tier] = overrides[tier] if overrides[tier] else PROMPTS[tier]
 
     # ── Load model ─────────────────────────────────────────────────────────────
     model = load_model(args.model, device=args.device)
@@ -658,19 +796,20 @@ def main() -> None:
     arch_info   = analyzer.architecture_summary()
     ana_metrics = analyzer.analytical_path_distribution()
 
-    log.info("Architecture : %s", arch_info["architecture"])
-    log.info("n_layers     : %d", arch_info["n_layers"])
-    log.info("max_path_len : %d", ana_metrics.max_path_len)
-    log.info("Ana. H       : %.4f bits", ana_metrics.entropy)
-    log.info("Ana. E[L]    : %.4f",      ana_metrics.mean_path_length)
+    log.info("Architecture   : %s", arch_info["architecture"])
+    log.info("n_layers       : %d",  arch_info["n_layers"])
+    log.info("max_path_len   : %d",  ana_metrics.max_path_len)
+    log.info("Ana. H         : %.4f bits", ana_metrics.entropy)
+    log.info("Ana. E[L]      : %.4f",      ana_metrics.mean_path_length)
+    log.info("active_fraction: %.0f%%",    args.active_fraction * 100)
+    log.info("Running %d prompt tiers: %s", len(prompts), list(prompts.keys()))
 
-    # ── Analyse both prompts ────────────────────────────────────────────────────
-    prompts = {
-        "grammar":   args.simple,
-        "reasoning": args.complex,
-    }
+    # ── Analyse all tiers ──────────────────────────────────────────────────────
     all_results: Dict[str, Dict] = {}
     for label, text in prompts.items():
+        log.info("")
+        log.info("━━━  Tier: %s  ━━━", label.upper())
+        log.info("  Prompt: %s…", text[:80])
         all_results[label] = analyse_prompt(
             model, analyzer, text, label,
             device=args.device,
@@ -678,8 +817,11 @@ def main() -> None:
         )
 
     # ── Output ─────────────────────────────────────────────────────────────────
-    heatmap_path = os.path.join(args.output_dir, "token_heatmap.png")
-    json_path    = os.path.join(args.output_dir, "token_heatmap.json")
+    frac_tag     = f"top{int(args.active_fraction*100)}"
+    heatmap_path = os.path.join(args.output_dir,
+                                f"token_heatmap_{frac_tag}.png")
+    json_path    = os.path.join(args.output_dir,
+                                f"token_heatmap_{frac_tag}.json")
 
     print_summary(all_results, ana_metrics, args.active_fraction)
     plot_heatmap(all_results, ana_metrics, heatmap_path)
@@ -689,8 +831,7 @@ def main() -> None:
     log.info("")
     log.info("Outputs:")
     log.info("  Heatmap    : %s", heatmap_path)
-    log.info("  Timeseries : %s",
-             heatmap_path.replace(".png", "_timeseries.png"))
+    log.info("  Timeseries : %s", heatmap_path.replace(".png", "_timeseries.png"))
     log.info("  JSON       : %s", json_path)
 
     # Cleanup
