@@ -61,6 +61,38 @@ log = logging.getLogger(__name__)
 # Model catalogue
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────
+# HuggingFace authentication helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _hf_login(token: Optional[str] = None) -> None:
+    """
+    Authenticate with HuggingFace Hub for the current Python session.
+
+    Token resolution order:
+      1. `token` argument (from --hf_token CLI flag)
+      2. HF_TOKEN  environment variable
+      3. HUGGING_FACE_HUB_TOKEN  environment variable
+      4. Cached credentials from `huggingface-cli login`  (automatic — no action needed)
+
+    If no token is found, a warning is logged.  Public / non-gated models
+    work without authentication.  Gated models (meta-llama/*) require a token.
+    """
+    import os
+    resolved = (token
+                or os.environ.get("HF_TOKEN")
+                or os.environ.get("HUGGING_FACE_HUB_TOKEN"))
+    if resolved:
+        try:
+            import huggingface_hub
+            huggingface_hub.login(token=resolved, add_to_git_credential=False)
+            log.info("HuggingFace: authenticated via token.")
+        except Exception as exc:
+            log.warning("HuggingFace login failed: %s", exc)
+    else:
+        log.debug("No HF_TOKEN found — using cached credentials or public access only.")
+
+
 MODEL_GROUPS: Dict[str, List[str]] = {
     # Pythia family — identical architecture, vary only in scale (sequential, pre-RMSNorm)
     "pythia": [
@@ -86,18 +118,24 @@ MODEL_GROUPS: Dict[str, List[str]] = {
         "EleutherAI/gpt-j-6b",      # parallel architecture
     ],
     # Llama-3 — sequential, Pre-RMSNorm + RoPE + SwiGLU (requires 4-bit for 70B)
+    # NousResearch mirrors are NOT gated; meta-llama/* require HF token + Meta approval.
     "llama": [
+        "NousResearch/Meta-Llama-3-8B",        # non-gated community mirror
+        "NousResearch/Meta-Llama-3-70B",       # non-gated community mirror (~38 GB 4-bit)
+    ],
+    # Gated originals — require HF token + Meta approval (huggingface.co/meta-llama)
+    "llama_gated": [
         "meta-llama/Meta-Llama-3-8B",
         "meta-llama/Meta-Llama-3-70B",
     ],
-    # Llama-3 instruct variants (chat-tuned; same architecture as base)
+    # Instruct variants — community mirrors
     "llama_instruct": [
-        "meta-llama/Meta-Llama-3-8B-Instruct",
-        "meta-llama/Meta-Llama-3-70B-Instruct",
+        "NousResearch/Meta-Llama-3-8B-Instruct",
+        "NousResearch/Meta-Llama-3-70B-Instruct",
     ],
     # Large cross-architecture comparison (all ≥6B, 4-bit recommended)
     "large": [
-        "meta-llama/Meta-Llama-3-8B",
+        "NousResearch/Meta-Llama-3-8B",
         "EleutherAI/gpt-j-6b",
         "EleutherAI/pythia-6.9b",
     ],
@@ -125,10 +163,16 @@ MODEL_PARAMS: Dict[str, float] = {
     "EleutherAI/gpt-neo-1.3B":                  1.3,
     "EleutherAI/gpt-neo-2.7B":                  2.7,
     "EleutherAI/gpt-j-6b":                      6.0,
+    # Llama-3 — gated originals
     "meta-llama/Meta-Llama-3-8B":               8.0,
     "meta-llama/Meta-Llama-3-8B-Instruct":      8.0,
     "meta-llama/Meta-Llama-3-70B":              70.0,
     "meta-llama/Meta-Llama-3-70B-Instruct":    70.0,
+    # Llama-3 — NousResearch non-gated mirrors (identical weights)
+    "NousResearch/Meta-Llama-3-8B":             8.0,
+    "NousResearch/Meta-Llama-3-8B-Instruct":    8.0,
+    "NousResearch/Meta-Llama-3-70B":            70.0,
+    "NousResearch/Meta-Llama-3-70B-Instruct":  70.0,
     "tiiuae/falcon-7b":                         7.0,
 }
 
@@ -203,6 +247,7 @@ def load_model(
     model_name: str,
     device:     str = "cuda",
     quant:      str = "4bit",   # "4bit" | "8bit" | "none"
+    hf_token:   Optional[str] = None,
 ):
     """
     Load a HookedTransformer with optional BitsAndBytes quantisation.
@@ -210,15 +255,19 @@ def load_model(
     Priority:
       "4bit" → NF4 double-quant (bf16 compute) → 8-bit int8 → bf16/fp16 native
       "8bit" → 8-bit int8 → bf16/fp16 native
-      "none" → bf16 (Llama) or fp16 (others), no quantisation
+      "none" → bf16 (Llama) or fp16 (others)
 
-    Llama / RoPE-based models automatically receive the extra TL kwargs:
+    Authentication:
+      Pass hf_token for gated models (meta-llama/*).
+      Non-gated mirrors (NousResearch/*) work without a token.
+      Also respects HF_TOKEN / HUGGING_FACE_HUB_TOKEN env vars.
+
+    Llama / RoPE-based models automatically receive the required TL kwargs:
       fold_ln=False, center_writing_weights=False, center_unembed=False
     """
     from transformer_lens import HookedTransformer
 
     is_llama  = _is_llama_family(model_name)
-    # bfloat16 is the native dtype for Llama-3 (avoids overflow vs fp16)
     nat_dtype = torch.bfloat16 if is_llama else torch.float16
     tl_kwargs = dict(fold_ln=False,
                      center_writing_weights=False,
@@ -226,6 +275,13 @@ def load_model(
 
     log.info("Loading  %s  [quant=%s, dtype=%s]",
              model_name, quant, "bf16" if is_llama else "fp16")
+
+    # Resolve token: explicit arg → env var
+    import os
+    token = (hf_token
+             or os.environ.get("HF_TOKEN")
+             or os.environ.get("HUGGING_FACE_HUB_TOKEN"))
+    tok_kw = {"token": token} if token else {}
 
     # ── 4-bit NF4 (QLoRA-style double quantisation) ───────────────────────
     if quant == "4bit":
@@ -243,6 +299,7 @@ def load_model(
                 quantization_config = bnb_cfg,
                 device_map          = "auto",
                 torch_dtype         = torch.bfloat16,
+                **tok_kw,
             )
             model = HookedTransformer.from_pretrained(
                 model_name,
@@ -250,6 +307,7 @@ def load_model(
                 dtype          = torch.bfloat16,
                 move_to_device = False,
                 **tl_kwargs,
+                **tok_kw,
             )
             model.eval()
             log.info("  ✓ 4-bit NF4 OK")
@@ -272,6 +330,7 @@ def load_model(
                 quantization_config = bnb_cfg,
                 device_map          = "auto",
                 torch_dtype         = torch.float16,
+                **tok_kw,
             )
             model = HookedTransformer.from_pretrained(
                 model_name,
@@ -279,6 +338,7 @@ def load_model(
                 dtype          = torch.float16,
                 move_to_device = False,
                 **tl_kwargs,
+                **tok_kw,
             )
             model.eval()
             log.info("  ✓ 8-bit OK")
@@ -289,7 +349,7 @@ def load_model(
     # ── Native dtype (bf16 for Llama, fp16 otherwise) ────────────────────
     log.info("  → %s no-quant …", "bf16" if is_llama else "fp16")
     model = HookedTransformer.from_pretrained(
-        model_name, dtype=nat_dtype, device=device, **tl_kwargs)
+        model_name, dtype=nat_dtype, device=device, **tl_kwargs, **tok_kw)
     model.eval()
     log.info("  ✓ %s OK", "bf16" if is_llama else "fp16")
     return model
@@ -507,6 +567,7 @@ def run_experiment(
     mass_coverage: float = 0.90,
     quant:         str   = "4bit",
     max_seq_len:   int   = 512,
+    hf_token:      Optional[str] = None,
     seed:          int   = 42,
 ) -> List[Dict[str, Any]]:
     """
@@ -523,7 +584,8 @@ def run_experiment(
 
     for model_name in model_names:
         try:
-            model = load_model(model_name, device=device, quant=quant)
+            model = load_model(model_name, device=device,
+                               quant=quant, hf_token=hf_token)
         except Exception as exc:
             log.error("Could not load %s: %s", model_name, exc)
             continue
@@ -882,6 +944,10 @@ Quantisation tips:
     p.add_argument("--quant",        type=str, default="4bit",
                    choices=["4bit", "8bit", "none"],
                    help="BitsAndBytes quantisation level (default: 4bit NF4)")
+    p.add_argument("--hf_token",     type=str, default=None,
+                   help=("HuggingFace access token for gated models (meta-llama/*). "
+                         "Also reads HF_TOKEN env var. "
+                         "Not needed for NousResearch/* mirrors."))
     p.add_argument("--max_seq_len",  type=int, default=512,
                    help=("Truncate prompts to this many tokens (default: 512). "
                          "Use 256 for 70B models to keep gradient-pass memory "
@@ -906,6 +972,9 @@ def main() -> None:
 
     task_names = [t.strip() for t in args.tasks.split(",") if t.strip()]
 
+    # Authenticate once for the whole session (reads HF_TOKEN env var too)
+    _hf_login(args.hf_token)
+
     log.info("Device       : %s", args.device)
     log.info("Quant        : %s", args.quant)
     log.info("max_seq_len  : %d", args.max_seq_len)
@@ -927,6 +996,7 @@ def main() -> None:
         mass_coverage=args.mass_coverage,
         quant=args.quant,
         max_seq_len=args.max_seq_len,
+        hf_token=args.hf_token,
         seed=args.seed,
     )
 

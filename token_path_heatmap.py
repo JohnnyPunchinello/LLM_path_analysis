@@ -153,10 +153,26 @@ def _is_llama_family(model_name: str) -> bool:
                for k in ("llama", "mistral", "gemma", "qwen", "phi"))
 
 
+def _hf_login(token=None) -> None:
+    """Authenticate with HF Hub (reads HF_TOKEN env var too)."""
+    import os
+    resolved = (token
+                or os.environ.get("HF_TOKEN")
+                or os.environ.get("HUGGING_FACE_HUB_TOKEN"))
+    if resolved:
+        try:
+            import huggingface_hub
+            huggingface_hub.login(token=resolved, add_to_git_credential=False)
+            log.info("HuggingFace: authenticated via token.")
+        except Exception as exc:
+            log.warning("HuggingFace login failed: %s", exc)
+
+
 def load_model(
     model_name: str,
     device:     str = "cuda",
     quant:      str = "4bit",   # "4bit" | "8bit" | "none"
+    hf_token:   str = None,
 ):
     """
     Load a HookedTransformer with optional BitsAndBytes quantisation.
@@ -173,6 +189,12 @@ def load_model(
     tl_kwargs = dict(fold_ln=False,
                      center_writing_weights=False,
                      center_unembed=False) if is_llama else {}
+
+    import os
+    token = (hf_token
+             or os.environ.get("HF_TOKEN")
+             or os.environ.get("HUGGING_FACE_HUB_TOKEN"))
+    tok_kw = {"token": token} if token else {}
 
     log.info("Loading %s  [quant=%s]", model_name, quant)
 
@@ -191,6 +213,7 @@ def load_model(
                 quantization_config = bnb_cfg,
                 device_map          = "auto",
                 torch_dtype         = torch.bfloat16,
+                **tok_kw,
             )
             model = HookedTransformer.from_pretrained(
                 model_name,
@@ -198,6 +221,7 @@ def load_model(
                 dtype          = torch.bfloat16,
                 move_to_device = False,
                 **tl_kwargs,
+                **tok_kw,
             )
             model.eval()
             log.info("  ✓ 4-bit NF4 OK")
@@ -219,6 +243,7 @@ def load_model(
                 quantization_config = bnb_cfg,
                 device_map          = "auto",
                 torch_dtype         = torch.float16,
+                **tok_kw,
             )
             model = HookedTransformer.from_pretrained(
                 model_name,
@@ -226,6 +251,7 @@ def load_model(
                 dtype          = torch.float16,
                 move_to_device = False,
                 **tl_kwargs,
+                **tok_kw,
             )
             model.eval()
             log.info("  ✓ 8-bit OK")
@@ -235,7 +261,7 @@ def load_model(
 
     # ── Native dtype ──────────────────────────────────────────────────────
     model = HookedTransformer.from_pretrained(
-        model_name, dtype=nat_dtype, device=device, **tl_kwargs)
+        model_name, dtype=nat_dtype, device=device, **tl_kwargs, **tok_kw)
     model.eval()
     log.info("  ✓ %s OK", "bf16" if is_llama else "fp16")
     return model
@@ -904,14 +930,21 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    parser.add_argument("--model",   default="meta-llama/Meta-Llama-3-8B",
-                        help="HuggingFace model ID (default: Meta-Llama-3-8B)")
+    parser.add_argument("--model",   default="NousResearch/Meta-Llama-3-8B",
+                        help=("HuggingFace model ID "
+                              "(default: NousResearch/Meta-Llama-3-8B — non-gated mirror). "
+                              "Use meta-llama/Meta-Llama-3-8B with --hf_token for the "
+                              "official gated release."))
     parser.add_argument("--device",  default="cuda",
                         help="Device: cuda or cpu (default: cuda)")
-    parser.add_argument("--quant",   default="4bit",
+    parser.add_argument("--quant",     default="4bit",
                         choices=["4bit", "8bit", "none"],
                         help=("BitsAndBytes quantisation: 4bit NF4 (~5 GB for 8B), "
                               "8bit int8, or none (bf16/fp16). Default: 4bit"))
+    parser.add_argument("--hf_token", default=None,
+                        help=("HuggingFace access token for gated models (meta-llama/*). "
+                              "Also reads HF_TOKEN env var. "
+                              "Not needed for NousResearch/* mirrors."))
 
     # Per-tier prompt overrides (optional — defaults from PROMPTS dict)
     parser.add_argument("--grammar",      default=None,
@@ -949,7 +982,9 @@ def main() -> None:
         prompts[tier] = overrides[tier] if overrides[tier] else PROMPTS[tier]
 
     # ── Load model ─────────────────────────────────────────────────────────────
-    model = load_model(args.model, device=args.device, quant=args.quant)
+    _hf_login(args.hf_token)
+    model = load_model(args.model, device=args.device,
+                       quant=args.quant, hf_token=args.hf_token)
 
     # ── PathAnalyzer ───────────────────────────────────────────────────────────
     from path_analyzer import PathAnalyzer
