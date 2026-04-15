@@ -148,30 +148,96 @@ MASS_COVERAGE = 0.90    # 90 % of attribution mass must be covered
 # Model loading
 # =============================================================================
 
-def load_model(model_name: str, device: str = "cuda"):
+def _is_llama_family(model_name: str) -> bool:
+    return any(k in model_name.lower()
+               for k in ("llama", "mistral", "gemma", "qwen", "phi"))
+
+
+def load_model(
+    model_name: str,
+    device:     str = "cuda",
+    quant:      str = "4bit",   # "4bit" | "8bit" | "none"
+):
+    """
+    Load a HookedTransformer with optional BitsAndBytes quantisation.
+
+    Priority: 4-bit NF4 → 8-bit int8 → bfloat16/float16 native.
+
+    Llama-3 / RoPE models automatically receive the required TL kwargs:
+      fold_ln=False, center_writing_weights=False, center_unembed=False
+    """
     from transformer_lens import HookedTransformer
 
-    log.info("Loading %s …", model_name)
-    try:
-        import bitsandbytes  # noqa: F401
-        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
-        bnb = BitsAndBytesConfig(load_in_8bit=True, llm_int8_threshold=6.0,
-                                 llm_int8_has_fp16_weight=False)
-        hf_m = AutoModelForCausalLM.from_pretrained(
-            model_name, quantization_config=bnb,
-            device_map="auto", torch_dtype=torch.float16)
-        model = HookedTransformer.from_pretrained(
-            model_name, hf_model=hf_m, dtype=torch.float16, move_to_device=False)
-        model.eval()
-        log.info("  -> 8-bit quantised load OK")
-        return model
-    except Exception as e:
-        log.debug("  8-bit failed (%s) — fp16 fallback.", e)
+    is_llama  = _is_llama_family(model_name)
+    nat_dtype = torch.bfloat16 if is_llama else torch.float16
+    tl_kwargs = dict(fold_ln=False,
+                     center_writing_weights=False,
+                     center_unembed=False) if is_llama else {}
 
+    log.info("Loading %s  [quant=%s]", model_name, quant)
+
+    # ── 4-bit NF4 ─────────────────────────────────────────────────────────
+    if quant == "4bit":
+        try:
+            from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+            bnb_cfg = BitsAndBytesConfig(
+                load_in_4bit              = True,
+                bnb_4bit_quant_type       = "nf4",
+                bnb_4bit_compute_dtype    = torch.bfloat16,
+                bnb_4bit_use_double_quant = True,
+            )
+            hf_m = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                quantization_config = bnb_cfg,
+                device_map          = "auto",
+                torch_dtype         = torch.bfloat16,
+            )
+            model = HookedTransformer.from_pretrained(
+                model_name,
+                hf_model       = hf_m,
+                dtype          = torch.bfloat16,
+                move_to_device = False,
+                **tl_kwargs,
+            )
+            model.eval()
+            log.info("  ✓ 4-bit NF4 OK")
+            return model
+        except Exception as exc:
+            log.warning("  4-bit failed (%s) — trying 8-bit …", exc)
+
+    # ── 8-bit LLM.int8 ────────────────────────────────────────────────────
+    if quant in ("4bit", "8bit"):
+        try:
+            from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+            bnb_cfg = BitsAndBytesConfig(
+                load_in_8bit             = True,
+                llm_int8_threshold       = 6.0,
+                llm_int8_has_fp16_weight = False,
+            )
+            hf_m = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                quantization_config = bnb_cfg,
+                device_map          = "auto",
+                torch_dtype         = torch.float16,
+            )
+            model = HookedTransformer.from_pretrained(
+                model_name,
+                hf_model       = hf_m,
+                dtype          = torch.float16,
+                move_to_device = False,
+                **tl_kwargs,
+            )
+            model.eval()
+            log.info("  ✓ 8-bit OK")
+            return model
+        except Exception as exc:
+            log.warning("  8-bit failed (%s) — native dtype …", exc)
+
+    # ── Native dtype ──────────────────────────────────────────────────────
     model = HookedTransformer.from_pretrained(
-        model_name, dtype=torch.float16, device=device)
+        model_name, dtype=nat_dtype, device=device, **tl_kwargs)
     model.eval()
-    log.info("  -> fp16 load OK")
+    log.info("  ✓ %s OK", "bf16" if is_llama else "fp16")
     return model
 
 
@@ -838,10 +904,14 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
 
-    parser.add_argument("--model",   default="EleutherAI/pythia-2.8b",
-                        help="HuggingFace model ID (default: pythia-2.8b)")
+    parser.add_argument("--model",   default="meta-llama/Meta-Llama-3-8B",
+                        help="HuggingFace model ID (default: Meta-Llama-3-8B)")
     parser.add_argument("--device",  default="cuda",
                         help="Device: cuda or cpu (default: cuda)")
+    parser.add_argument("--quant",   default="4bit",
+                        choices=["4bit", "8bit", "none"],
+                        help=("BitsAndBytes quantisation: 4bit NF4 (~5 GB for 8B), "
+                              "8bit int8, or none (bf16/fp16). Default: 4bit"))
 
     # Per-tier prompt overrides (optional — defaults from PROMPTS dict)
     parser.add_argument("--grammar",      default=None,
@@ -879,7 +949,7 @@ def main() -> None:
         prompts[tier] = overrides[tier] if overrides[tier] else PROMPTS[tier]
 
     # ── Load model ─────────────────────────────────────────────────────────────
-    model = load_model(args.model, device=args.device)
+    model = load_model(args.model, device=args.device, quant=args.quant)
 
     # ── PathAnalyzer ───────────────────────────────────────────────────────────
     from path_analyzer import PathAnalyzer
@@ -892,6 +962,7 @@ def main() -> None:
     log.info("max_path_len   : %d",  ana_metrics.max_path_len)
     log.info("Ana. H         : %.4f bits", ana_metrics.entropy)
     log.info("Ana. E[L]      : %.4f",      ana_metrics.mean_path_length)
+    log.info("quant          : %s",        args.quant)
     log.info("mass_coverage  : %.0f%%",    args.mass_coverage * 100)
     log.info("Running %d prompt tiers: %s", len(prompts), list(prompts.keys()))
 

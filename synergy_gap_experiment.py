@@ -123,19 +123,28 @@ MODEL_GROUPS: Dict[str, List[str]] = {
         "gpt2-xl",
     ],
     # Pre-LN sequential (GPT-Neo) + parallel ternary (GPT-J)
-    # Lets us isolate the sequential/parallel architecture difference
     "neo": [
         "EleutherAI/gpt-neo-125m",
         "EleutherAI/gpt-neo-1.3B",
         "EleutherAI/gpt-neo-2.7B",
         "EleutherAI/gpt-j-6b",         # parallel_attn_mlp=True
     ],
-    # Post-LayerNorm sequential — normalization contrast with Pythia/GPT-2
+    # Post-LayerNorm sequential — normalization contrast
     "opt": [
         "facebook/opt-125m",
         "facebook/opt-350m",
         "facebook/opt-1.3b",
         "facebook/opt-2.7b",
+    ],
+    # Llama-3 — Pre-RMSNorm, RoPE, SwiGLU, GQA (8B needs ~5GB VRAM in 4-bit)
+    "llama": [
+        "meta-llama/Meta-Llama-3-8B",
+        "meta-llama/Meta-Llama-3-70B",
+    ],
+    # Llama-3 instruct (chat-tuned; same architecture as base)
+    "llama_instruct": [
+        "meta-llama/Meta-Llama-3-8B-Instruct",
+        "meta-llama/Meta-Llama-3-70B-Instruct",
     ],
     # Quick smoke-test group (CPU-feasible, small models only)
     "small": [
@@ -150,39 +159,48 @@ MODEL_GROUPS["all"] = (
     + MODEL_GROUPS["gpt2"]
     + MODEL_GROUPS["neo"]
     + MODEL_GROUPS["opt"]
+    + MODEL_GROUPS["llama"]
 )
 
 MODEL_PARAMS_B: Dict[str, float] = {
-    "EleutherAI/pythia-70m":    0.070,
-    "EleutherAI/pythia-160m":   0.160,
-    "EleutherAI/pythia-410m":   0.410,
-    "EleutherAI/pythia-1b":     1.0,
-    "EleutherAI/pythia-2.8b":   2.8,
-    "EleutherAI/pythia-6.9b":   6.9,
-    "gpt2":                     0.117,
-    "gpt2-medium":              0.345,
-    "gpt2-large":               0.774,
-    "gpt2-xl":                  1.558,
-    "EleutherAI/gpt-neo-125m":  0.125,
-    "EleutherAI/gpt-neo-1.3B":  1.3,
-    "EleutherAI/gpt-neo-2.7B":  2.7,
-    "EleutherAI/gpt-j-6b":      6.0,
-    "facebook/opt-125m":        0.125,
-    "facebook/opt-350m":        0.350,
-    "facebook/opt-1.3b":        1.3,
-    "facebook/opt-2.7b":        2.7,
+    "EleutherAI/pythia-70m":                    0.070,
+    "EleutherAI/pythia-160m":                   0.160,
+    "EleutherAI/pythia-410m":                   0.410,
+    "EleutherAI/pythia-1b":                     1.0,
+    "EleutherAI/pythia-2.8b":                   2.8,
+    "EleutherAI/pythia-6.9b":                   6.9,
+    "gpt2":                                     0.117,
+    "gpt2-medium":                              0.345,
+    "gpt2-large":                               0.774,
+    "gpt2-xl":                                  1.558,
+    "EleutherAI/gpt-neo-125m":                  0.125,
+    "EleutherAI/gpt-neo-1.3B":                  1.3,
+    "EleutherAI/gpt-neo-2.7B":                  2.7,
+    "EleutherAI/gpt-j-6b":                      6.0,
+    "facebook/opt-125m":                        0.125,
+    "facebook/opt-350m":                        0.350,
+    "facebook/opt-1.3b":                        1.3,
+    "facebook/opt-2.7b":                        2.7,
+    "meta-llama/Meta-Llama-3-8B":               8.0,
+    "meta-llama/Meta-Llama-3-8B-Instruct":      8.0,
+    "meta-llama/Meta-Llama-3-70B":              70.0,
+    "meta-llama/Meta-Llama-3-70B-Instruct":    70.0,
 }
 
 # Family name that appears in plots  (model_name → display family)
 def _infer_family(model_name: str) -> str:
     m = model_name.lower()
-    if "pythia"   in m:  return "Pythia (Pre-RMSNorm, sequential)"
-    if "gpt-j"    in m:  return "GPT-J (parallel ternary)"
-    if "gpt-neo"  in m:  return "GPT-Neo (Pre-LN, sequential)"
-    if "gpt2"     in m:  return "GPT-2 (Pre-LN, sequential)"
-    if "opt"      in m:  return "OPT (Post-LN, sequential)"
-    if "llama"    in m:  return "LLaMA (Pre-RMS, sequential)"
-    if "falcon"   in m:  return "Falcon (parallel, sequential)"
+    if "pythia"                    in m: return "Pythia (Pre-RMSNorm, sequential)"
+    if "gpt-j"                     in m: return "GPT-J (parallel ternary)"
+    if "gpt-neo"                   in m: return "GPT-Neo (Pre-LN, sequential)"
+    if "gpt2"                      in m: return "GPT-2 (Pre-LN, sequential)"
+    if "opt"                       in m: return "OPT (Post-LN, sequential)"
+    if "llama-3-70b" in m or "llama3-70b" in m:
+                                          return "Llama-3-70B (Pre-RMSNorm, GQA)"
+    if "llama-3-8b"  in m or "llama3-8b"  in m:
+                                          return "Llama-3-8B (Pre-RMSNorm, GQA)"
+    if "llama"                     in m: return "LLaMA (Pre-RMSNorm, sequential)"
+    if "falcon"                    in m: return "Falcon (parallel, sequential)"
     return "Other"
 
 def _arch_type(model_name: str) -> str:
@@ -190,7 +208,7 @@ def _arch_type(model_name: str) -> str:
     m = model_name.lower()
     if "gpt-j" in m or "falcon" in m:  return "parallel"
     if "opt"   in m:                    return "sequential-post-LN"
-    return "sequential-pre-LN"
+    return "sequential-pre-LN"      # Pythia, GPT-2, GPT-Neo, Llama-3
 
 def _short_name(model_name: str) -> str:
     return model_name.split("/")[-1]
@@ -290,31 +308,101 @@ DEFAULT_MODELS  = MODEL_GROUPS["small"]
 # Model loading
 # =============================================================================
 
-def load_model(model_name: str, device: str = "cuda",
-               dtype: torch.dtype = torch.float16):
+def _is_llama_family(model_name: str) -> bool:
+    """True for RoPE + RMSNorm models that need special TransformerLens kwargs."""
+    return any(k in model_name.lower()
+               for k in ("llama", "mistral", "gemma", "qwen", "phi"))
+
+
+def load_model(
+    model_name: str,
+    device:     str = "cuda",
+    quant:      str = "4bit",   # "4bit" | "8bit" | "none"
+):
+    """
+    Load a HookedTransformer with optional BitsAndBytes quantisation.
+
+    Quantisation priority  (quant="4bit"):
+      1. 4-bit NF4 double-quant (bf16 compute)  — ~5 GB for 8B, ~38 GB for 70B
+      2. 8-bit LLM.int8()                       — ~8 GB for 8B
+      3. bfloat16 / float16 native
+
+    Llama-3 models automatically receive:
+      fold_ln=False, center_writing_weights=False, center_unembed=False
+    (required by TransformerLens for RoPE + RMSNorm models).
+    """
     from transformer_lens import HookedTransformer
 
-    log.info("Loading  %s …", model_name)
-    # Try 8-bit quantised first (large models on single GPU)
-    try:
-        import bitsandbytes  # noqa: F401
-        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
-        bnb = BitsAndBytesConfig(load_in_8bit=True, llm_int8_threshold=6.0,
-                                 llm_int8_has_fp16_weight=False)
-        hf_m = AutoModelForCausalLM.from_pretrained(
-            model_name, quantization_config=bnb,
-            device_map="auto", torch_dtype=torch.float16)
-        model = HookedTransformer.from_pretrained(
-            model_name, hf_model=hf_m, dtype=torch.float16, move_to_device=False)
-        model.eval()
-        log.info("  -> 8-bit quantised load OK")
-        return model
-    except Exception as e:
-        log.debug("  8-bit failed (%s) — fp16 fallback.", e)
+    is_llama  = _is_llama_family(model_name)
+    nat_dtype = torch.bfloat16 if is_llama else torch.float16
+    tl_kwargs = dict(fold_ln=False,
+                     center_writing_weights=False,
+                     center_unembed=False) if is_llama else {}
 
-    model = HookedTransformer.from_pretrained(model_name, dtype=dtype, device=device)
+    log.info("Loading  %s  [quant=%s]", model_name, quant)
+
+    # ── 4-bit NF4 ─────────────────────────────────────────────────────────
+    if quant == "4bit":
+        try:
+            from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+            bnb_cfg = BitsAndBytesConfig(
+                load_in_4bit              = True,
+                bnb_4bit_quant_type       = "nf4",
+                bnb_4bit_compute_dtype    = torch.bfloat16,
+                bnb_4bit_use_double_quant = True,
+            )
+            hf_m = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                quantization_config = bnb_cfg,
+                device_map          = "auto",
+                torch_dtype         = torch.bfloat16,
+            )
+            model = HookedTransformer.from_pretrained(
+                model_name,
+                hf_model       = hf_m,
+                dtype          = torch.bfloat16,
+                move_to_device = False,
+                **tl_kwargs,
+            )
+            model.eval()
+            log.info("  ✓ 4-bit NF4 OK")
+            return model
+        except Exception as exc:
+            log.warning("  4-bit failed (%s) — trying 8-bit …", exc)
+
+    # ── 8-bit LLM.int8 ────────────────────────────────────────────────────
+    if quant in ("4bit", "8bit"):
+        try:
+            from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+            bnb_cfg = BitsAndBytesConfig(
+                load_in_8bit             = True,
+                llm_int8_threshold       = 6.0,
+                llm_int8_has_fp16_weight = False,
+            )
+            hf_m = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                quantization_config = bnb_cfg,
+                device_map          = "auto",
+                torch_dtype         = torch.float16,
+            )
+            model = HookedTransformer.from_pretrained(
+                model_name,
+                hf_model       = hf_m,
+                dtype          = torch.float16,
+                move_to_device = False,
+                **tl_kwargs,
+            )
+            model.eval()
+            log.info("  ✓ 8-bit OK")
+            return model
+        except Exception as exc:
+            log.warning("  8-bit failed (%s) — native dtype fallback …", exc)
+
+    # ── Native dtype ──────────────────────────────────────────────────────
+    model = HookedTransformer.from_pretrained(
+        model_name, dtype=nat_dtype, device=device, **tl_kwargs)
     model.eval()
-    log.info("  -> fp16 load OK")
+    log.info("  ✓ %s OK (no quant)", "bf16" if is_llama else "fp16")
     return model
 
 
@@ -553,6 +641,8 @@ def run_experiment(
     output_dir:    str   = "results",
     device:        str   = "cuda",
     mass_coverage: float = 0.90,
+    quant:         str   = "4bit",
+    max_seq_len:   int   = 512,
     seed:          int   = 42,
     resume_csv:    Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -589,7 +679,7 @@ def run_experiment(
             continue
 
         try:
-            model = load_model(model_name, device=device)
+            model = load_model(model_name, device=device, quant=quant)
         except Exception as exc:
             log.error("Could not load %s: %s", model_name, exc)
             continue
@@ -629,8 +719,8 @@ def run_experiment(
                 try:
                     tokens = model.to_tokens(
                         sample["prompt"], prepend_bos=True).to(device)
-                    if tokens.shape[-1] > 512:
-                        tokens = tokens[:, -512:]
+                    if tokens.shape[-1] > max_seq_len:
+                        tokens = tokens[:, -max_seq_len:]
 
                     per_corr.append(
                         check_accuracy(task_name, model, tokens, sample, device))
@@ -1167,20 +1257,28 @@ def main() -> None:
     # Data source
     parser.add_argument("--models", default=None,
         help="Comma-separated HuggingFace model IDs")
-    parser.add_argument("--model_group", default="small",
+    parser.add_argument("--model_group", default="llama",
         choices=list(MODEL_GROUPS.keys()),
-        help=f"Predefined group (default: small).  Options: {list(MODEL_GROUPS.keys())}")
+        help=f"Predefined group (default: llama).  Options: {list(MODEL_GROUPS.keys())}")
     parser.add_argument("--tasks", default=",".join(DEFAULT_TASKS),
         help="Comma-separated task names from: " + ", ".join(TASKS.keys()))
 
     # Experiment settings
-    parser.add_argument("--n_samples",        type=int,   default=50)
-    parser.add_argument("--device",           default="cuda")
-    parser.add_argument("--mass_coverage",    type=float, default=0.90,
+    parser.add_argument("--n_samples",    type=int,   default=50)
+    parser.add_argument("--device",       default="cuda")
+    parser.add_argument("--quant",        default="4bit",
+        choices=["4bit", "8bit", "none"],
+        help=("BitsAndBytes quantisation level (default: 4bit NF4). "
+              "4bit: ~5 GB for 8B, ~38 GB for 70B. "
+              "Use --max_seq_len 256 for 70B on a single 80 GB GPU."))
+    parser.add_argument("--max_seq_len",  type=int,   default=512,
+        help=("Truncate prompts to this many tokens (default 512). "
+              "Set to 256 for 70B to keep gradient-pass memory within 80 GB."))
+    parser.add_argument("--mass_coverage", type=float, default=0.90,
         help=("Per-sample active subgraph: min edges covering this fraction "
               "of attribution mass (default: 0.90)"))
-    parser.add_argument("--seed",             type=int,   default=42)
-    parser.add_argument("--output_dir",       default="results")
+    parser.add_argument("--seed",         type=int,   default=42)
+    parser.add_argument("--output_dir",   default="results")
 
     # Resume / plot only
     parser.add_argument("--resume", default=None,
@@ -1213,9 +1311,11 @@ def main() -> None:
             parser.error(f"Unknown tasks: {unknown}. "
                          f"Valid: {list(TASKS.keys())}")
 
-        log.info("Models (%d): %s", len(model_names), model_names)
-        log.info("Tasks  (%d): %s", len(task_names),  task_names)
-        log.info("Samples/task: %d  |  device: %s  |  mass_coverage: %.0f%%",
+        log.info("Models (%d)   : %s", len(model_names), model_names)
+        log.info("Tasks  (%d)   : %s", len(task_names),  task_names)
+        log.info("Quant         : %s", args.quant)
+        log.info("max_seq_len   : %d", args.max_seq_len)
+        log.info("Samples/task  : %d  |  device: %s  |  mass_coverage: %.0f%%",
                  args.n_samples, args.device, args.mass_coverage * 100)
 
         results = run_experiment(
@@ -1225,6 +1325,8 @@ def main() -> None:
             output_dir    = output_dir,
             device        = args.device,
             mass_coverage = args.mass_coverage,
+            quant         = args.quant,
+            max_seq_len   = args.max_seq_len,
             seed          = args.seed,
             resume_csv    = args.resume,
         )
