@@ -33,10 +33,18 @@ Prompt difficulty tiers (four prompts run by default)
                 (two carry steps: units digit, tens digit, sum)
   logic_puzzle— multi-step constraint deduction (5-person ordering)
 
-Active subgraph
----------------
-  active_fraction = 0.40  →  top 40 % highest-attribution edges kept
-  epsilon          = 60th percentile of all 2L AtP scores per position
+Active subgraph (mass-coverage rule)
+-------------------------------------
+  For each token t, select the MINIMUM number of edges whose combined
+  attribution score accounts for >= mass_coverage of total attribution mass.
+
+  This is the "nucleus" rule applied to edges:
+    Sort all 2L scores descending → cumsum → find smallest k where
+    cumsum[k] >= mass_coverage * total_mass → epsilon = score[k]
+
+  Simple tokens: attribution concentrated → small k (sparse subgraph)
+  Complex tokens: attribution spread out   → large k (dense subgraph)
+  Both E[L]_t and k_t are reported per token.
 
 Outputs
 -------
@@ -131,9 +139,9 @@ PROMPTS = {
 # Ordered from easiest to hardest for consistent plot layout
 PROMPT_ORDER = ["grammar", "simple_math", "hard_math", "logic_puzzle"]
 
-# Top-N% active subgraph threshold  (raised from 0.20 to expose richer contrast)
-ACTIVE_FRACTION  = 0.40          # keep top 40 % highest-attribution edges
-EPSILON_QUANTILE = 1.0 - ACTIVE_FRACTION   # → 60th percentile threshold
+# Mass-coverage threshold: keep the MINIMUM edges that explain this fraction
+# of the total attribution mass for each token.
+MASS_COVERAGE = 0.90    # 90 % of attribution mass must be covered
 
 
 # =============================================================================
@@ -277,98 +285,96 @@ def analyse_prompt(
     prompt_text: str,
     label:       str,
     device:      str,
-    active_fraction: float = ACTIVE_FRACTION,
+    mass_coverage: float = MASS_COVERAGE,
     skip_bos:    bool = True,
 ) -> Dict[str, Any]:
     """
     Run the full per-token path-length analysis for one prompt.
 
-    Returns a dict with token texts, predicted tokens, E[L] values,
-    and attribution score arrays for downstream inspection.
+    For every token position t the active subgraph is defined by the
+    MINIMUM set of edges covering >= mass_coverage of total attribution mass
+    for that specific token.  Both E[L]_t and k_t (edge count) are recorded.
     """
-    from path_analyzer import _to_metrics   # module-level helper
-
-    epsilon_q = 1.0 - active_fraction       # 80th percentile → top 20 % active
+    from path_analyzer import _to_metrics, select_active_edges_by_mass_coverage
 
     # Tokenise
     tokens = model.to_tokens(prompt_text, prepend_bos=True).to(device)
     seq_len = tokens.shape[-1]
-    log.info("[%s] %d tokens", label, seq_len)
+    log.info("[%s] %d tokens  |  mass_coverage=%.0f%%", label, seq_len,
+             mass_coverage * 100)
 
     # Token display strings (decoded one-by-one for clean labels)
     token_strs: List[str] = []
     for idx in tokens[0].tolist():
-        raw = model.tokenizer.decode([idx])
-        token_strs.append(raw)
+        token_strs.append(model.tokenizer.decode([idx]))
 
-    # Positions to analyse.
-    # Position t → predicts what comes after position t.
+    # Position t → attributions for predicting token at position t+1.
     # We skip position 0 (BOS) as it has no prior context.
     start_pos = 1 if skip_bos else 0
     positions = list(range(start_pos, seq_len))
 
-    el_list:         List[float]      = []
-    pred_tokens:     List[str]        = []
-    all_attn_scores: List[np.ndarray] = []
-    all_mlp_scores:  List[np.ndarray] = []
-    active_edge_counts: List[int]     = []
+    el_list:      List[float] = []
+    k_list:       List[int]   = []      # number of edges selected per token
+    epsilon_list: List[float] = []      # adaptive threshold per token
+    pred_tokens:  List[str]   = []
 
-    n_layers    = analyzer.n_layers
+    n_layers     = analyzer.n_layers
     is_attn_only = analyzer.is_attn_only
+    max_edges    = 2 * n_layers if not is_attn_only else n_layers
 
     for i, t in enumerate(positions):
-        log.info("  [%s] position %d/%d — token '%s'",
+        log.info("  [%s] pos %d/%d  token='%s'",
                  label, i + 1, len(positions), repr(token_strs[t]))
 
         a_sc, m_sc, pred_tok = _position_atp_scores(
             model, tokens, t, n_layers, is_attn_only, device)
 
-        # Threshold: keep top (active_fraction * 100)% edges
-        all_sc = np.concatenate([a_sc, m_sc])
-        epsilon = float(np.quantile(all_sc, epsilon_q))
-
-        active_attn = (a_sc > epsilon).tolist()
-        active_mlp  = (m_sc > epsilon).tolist()
-        n_active    = sum(active_attn) + sum(active_mlp)
+        # ── Mass-coverage active subgraph (adaptive per token) ────────────
+        active_attn, active_mlp, epsilon, k = \
+            select_active_edges_by_mass_coverage(a_sc, m_sc, mass_coverage)
 
         counts  = analyzer._path_count_dp(active_attn, active_mlp)
         metrics = _to_metrics(counts)
 
         el_list.append(metrics.mean_path_length)
+        k_list.append(k)
+        epsilon_list.append(epsilon)
         pred_tokens.append(model.tokenizer.decode([pred_tok]))
-        all_attn_scores.append(a_sc)
-        all_mlp_scores.append(m_sc)
-        active_edge_counts.append(n_active)
 
-        log.info("    E[L]=%.2f  active_edges=%d  ε=%.2e",
-                 metrics.mean_path_length, n_active, epsilon)
+        log.info("    E[L]=%.3f  k=%d/%d (%.0f%% of edges)  ε=%.2e",
+                 metrics.mean_path_length, k, max_edges,
+                 100 * k / max_edges, epsilon)
 
-    # Pad BOS position with NaN so index aligns with token_strs
-    if skip_bos:
-        el_padded   = [float("nan")] + el_list
-        pred_padded = ["—"]          + pred_tokens
-        n_act_padded= [0]            + active_edge_counts
-    else:
-        el_padded   = el_list
-        pred_padded = pred_tokens
-        n_act_padded= active_edge_counts
+    # ── Pad BOS position with NaN so index aligns with token_strs ─────────
+    def _pad(lst, fill):
+        return [fill] + lst if skip_bos else list(lst)
+
+    el_padded  = _pad(el_list,  float("nan"))
+    k_padded   = _pad(k_list,   0)
+    eps_padded = _pad(epsilon_list, float("nan"))
+    pred_pad   = _pad(pred_tokens, "—")
+
+    valid_el = [(i, v) for i, v in enumerate(el_padded) if not np.isnan(v)]
 
     return {
         "label":          label,
         "prompt":         prompt_text,
         "token_strs":     token_strs,
         "el_values":      el_padded,
-        "pred_tokens":    pred_padded,
-        "n_active_edges": n_act_padded,
+        "k_values":       k_padded,       # adaptive edge counts per token
+        "epsilon_values": eps_padded,     # adaptive epsilon per token
+        "pred_tokens":    pred_pad,
+        "n_active_edges": k_padded,       # kept for backward compat
         "max_el":         float(np.nanmax(el_padded)),
         "mean_el":        float(np.nanmean(el_padded)),
         "min_el":         float(np.nanmin(el_padded)),
-        # Top-recruited positions (excluding BOS)
-        "top5_positions": sorted(
-            [(i, el) for i, el in enumerate(el_padded)
-             if not np.isnan(el)],
-            key=lambda x: x[1], reverse=True
-        )[:5],
+        "mean_k":         float(np.mean([k for k in k_padded if k > 0])),
+        "max_k":          int(max(k_padded)),
+        "min_k":          int(min(k for k in k_padded if k > 0)),
+        "top5_positions": sorted(valid_el, key=lambda x: x[1], reverse=True)[:5],
+        "top5_k_positions": sorted(         # positions with most active edges
+            [(i, k) for i, k in enumerate(k_padded) if k > 0],
+            key=lambda x: x[1], reverse=True)[:5],
     }
 
 
@@ -545,13 +551,16 @@ def plot_el_timeseries(
     results:     Dict[str, Dict],
     ana_metrics,
     output_path: str,
+    mass_coverage: float = MASS_COVERAGE,
 ) -> None:
     """
-    Line plot of E[L]_t vs token index for all prompts on a shared axis.
-    Ordered from easiest to hardest so the difficulty gradient is visible.
-    Shaded bands highlight the min–max range around each curve.
+    Dual-axis line plot: E[L]_t (left y) and k_t — active edge count (right y).
+
+    Primary curves (left axis, solid/dashed)  : empirical mean path length E[L]_t
+    Secondary curves (right axis, dotted, α=0.35): adaptive edge count k_t
+    Ordered from easiest (grammar) to hardest (logic_puzzle) so the difficulty
+    gradient is clearly visible.
     """
-    # Colour palette ordered by difficulty
     PALETTE = {
         "grammar":      "#2196F3",   # blue
         "simple_math":  "#4CAF50",   # green
@@ -559,62 +568,91 @@ def plot_el_timeseries(
         "logic_puzzle": "#E53935",   # red
     }
     LINESTYLES = {
-        "grammar":      (0, ()),          # solid
-        "simple_math":  (0, (5, 2)),      # dashed
-        "hard_math":    (0, (3, 1, 1, 1)),# dash-dot
-        "logic_puzzle": (0, (1, 1)),      # dotted
+        "grammar":      (0, ()),            # solid
+        "simple_math":  (0, (5, 2)),        # dashed
+        "hard_math":    (0, (3, 1, 1, 1)),  # dash-dot
+        "logic_puzzle": (0, (1, 1)),        # dotted
     }
 
-    # Ordered display
     ordered = [k for k in PROMPT_ORDER if k in results]
     ordered += [k for k in results if k not in ordered]
 
-    fig, ax = plt.subplots(figsize=(14, 5.0), constrained_layout=True)
+    fig, ax1 = plt.subplots(figsize=(14, 5.5), constrained_layout=True)
+    ax2 = ax1.twinx()   # secondary axis for k_t
+
+    legend_handles = []
 
     for label in ordered:
-        r    = results[label]
-        toks = r["token_strs"]
-        el   = r["el_values"]
-        xs   = np.arange(len(toks))
-        mask = [not np.isnan(v) for v in el]
-        xs_v = [x for x, m in zip(xs, mask) if m]
-        ys_v = [v for v, m in zip(el, mask) if m]
+        r     = results[label]
+        toks  = r["token_strs"]
+        el    = r["el_values"]
+        k_all = r["k_values"]
+        xs    = np.arange(len(toks))
 
-        color   = PALETTE.get(label, "gray")
-        ls      = LINESTYLES.get(label, (0, ()))
+        # Masks: skip NaN (BOS pad)
+        el_mask = [not np.isnan(v) for v in el]
+        xs_el   = [x for x, m in zip(xs, el_mask) if m]
+        ys_el   = [v for v, m in zip(el, el_mask) if m]
+
+        k_mask  = [kv > 0 for kv in k_all]
+        xs_k    = [x for x, m in zip(xs, k_mask) if m]
+        ys_k    = [v for v, m in zip(k_all, k_mask) if m]
+
+        color = PALETTE.get(label, "gray")
+        ls    = LINESTYLES.get(label, (0, ()))
         grammar_max = results.get("grammar", {}).get("max_el", 0.0)
-        delta   = r["max_el"] - grammar_max
-        dlabel  = f"  (delta={delta:+.2f})" if label != "grammar" else "  (baseline)"
+        delta  = r["max_el"] - grammar_max
+        dlabel = f"  (Δ={delta:+.2f})" if label != "grammar" else "  (baseline)"
 
-        ax.plot(xs_v, ys_v, color=color, lw=2.2, dashes=ls[1],
-                marker="o", ms=4.5, zorder=3,
-                label=f"{label.replace('_', ' ').title()}"
-                      f"  max={r['max_el']:.2f}{dlabel}")
+        # ── Primary: E[L] ─────────────────────────────────────────────────
+        ln, = ax1.plot(xs_el, ys_el, color=color, lw=2.2, dashes=ls[1],
+                       marker="o", ms=4.5, zorder=3,
+                       label=f"{label.replace('_', ' ').title()}"
+                             f"  max={r['max_el']:.2f}{dlabel}")
+        legend_handles.append(ln)
 
-        # Annotate peak token
-        if xs_v:
+        # Annotate E[L] peak
+        if xs_el:
             peak_i = int(np.nanargmax(el))
-            ax.annotate(
+            ax1.annotate(
                 f"  '{_clean_tok(toks[peak_i])}'",
                 xy=(peak_i, el[peak_i]),
                 fontsize=8, color=color, va="bottom",
                 xytext=(3, 3), textcoords="offset points")
 
-    # Analytical E[L] ceiling
-    ax.axhline(ana_metrics.mean_path_length, color="#1a1aff",
-               ls="--", lw=1.5, alpha=0.65,
-               label=f"Analytical E[L] = {ana_metrics.mean_path_length:.1f}")
+        # ── Secondary: k_t (right axis, same colour, thin dotted, low α) ──
+        if xs_k:
+            ax2.plot(xs_k, ys_k, color=color, lw=1.2,
+                     linestyle=":", alpha=0.35, zorder=2)
 
-    # Complexity band labels on right margin
-    ax.set_xlabel("Token Position", fontsize=11)
-    ax.set_ylabel("Empirical  E[L]_t", fontsize=11)
-    ax.set_title(
+    # ── Analytical E[L] ceiling (left axis) ──────────────────────────────
+    hline = ax1.axhline(ana_metrics.mean_path_length, color="#1a1aff",
+                        ls="--", lw=1.5, alpha=0.65,
+                        label=f"Analytical E[L] = {ana_metrics.mean_path_length:.1f}")
+    legend_handles.append(hline)
+
+    # ── Axes labels / formatting ──────────────────────────────────────────
+    ax1.set_xlabel("Token Position", fontsize=11)
+    ax1.set_ylabel("Empirical  E[L]_t  (mean path length)", fontsize=11)
+    ax2.set_ylabel("k_t  (active edges,  90% mass coverage)",
+                   fontsize=10, color="#555555")
+    ax2.tick_params(axis="y", labelcolor="#555555")
+
+    # Right-axis ticks: integer, range [0, 2L]
+    max_possible_k = ana_metrics.max_path_len * 2
+    ax2.set_ylim(0, max_possible_k * 1.05)
+    ax2.yaxis.set_major_locator(
+        plt.MaxNLocator(integer=True, nbins=6, steps=[1, 2, 4, 5, 10]))
+
+    ax1.set_title(
         "Path Recruitment per Token  |  "
-        f"active_fraction={ACTIVE_FRACTION:.0%}  (top-40% subgraph)",
+        f"mass-coverage ≥ {mass_coverage:.0%}  "
+        f"(solid/dashed = E[L],  dotted = k edges)",
         fontsize=12, fontweight="bold")
-    ax.legend(fontsize=8.5, loc="upper left", framealpha=0.9)
-    ax.set_ylim(bottom=0, top=ana_metrics.mean_path_length * 1.08)
-    ax.grid(True, alpha=0.35)
+    ax1.legend(handles=legend_handles, fontsize=8.5,
+               loc="upper left", framealpha=0.9)
+    ax1.set_ylim(bottom=0, top=ana_metrics.mean_path_length * 1.08)
+    ax1.grid(True, alpha=0.35)
 
     ts_path = output_path.replace(".png", "_timeseries.png")
     fig.savefig(ts_path, dpi=150, bbox_inches="tight")
@@ -626,112 +664,164 @@ def plot_el_timeseries(
 # Output summary + JSON
 # =============================================================================
 
-def print_summary(results: Dict[str, Dict], ana_metrics, active_fraction: float) -> None:
+def print_summary(results: Dict[str, Dict], ana_metrics,
+                  mass_coverage: float = MASS_COVERAGE) -> None:
     print()
-    print("=" * 72)
-    print("  TOKEN-WISE PATH RECRUITMENT SUMMARY")
-    print("=" * 72)
+    print("=" * 76)
+    print("  TOKEN-WISE PATH RECRUITMENT SUMMARY  (mass-coverage subgraph)")
+    print("=" * 76)
     print(f"  Analytical E[L]  : {ana_metrics.mean_path_length:.4f}")
-    print(f"  Active subgraph  : top {int(active_fraction*100)}% edges  "
-          f"(epsilon = {int((1-active_fraction)*100)}th pct of AtP scores)")
+    print(f"  Rule             : minimum edges covering >= {mass_coverage:.0%} of "
+          f"attribution mass per token")
+    print(f"  (k adapts per token: small k = concentrated, large k = spread)")
     print()
 
-    # Per-prompt table
-    col_w = 14
-    header = (f"  {'Prompt':<20}  {'Tokens':>6}  {'min E[L]':>8}  "
-              f"{'mean E[L]':>9}  {'max E[L]':>8}  {'Delta vs grammar':>16}")
-    print(header)
-    print("  " + "-" * (len(header) - 2))
+    grammar_max   = results.get("grammar", {}).get("max_el",  0.0)
+    grammar_max_k = results.get("grammar", {}).get("max_k",   0)
 
-    grammar_max = results.get("grammar", {}).get("max_el", 0.0)
+    ordered = [lbl for lbl in PROMPT_ORDER if lbl in results]
+    ordered += [lbl for lbl in results if lbl not in ordered]
 
-    ordered = [k for k in PROMPT_ORDER if k in results]
-    ordered += [k for k in results if k not in ordered]   # any extra prompts
-
-    for label in ordered:
-        r     = results[label]
+    # ── E[L] table ──────────────────────────────────────────────────────────
+    hdr = (f"  {'Prompt':<20}  {'min E[L]':>8}  {'mean E[L]':>9}  "
+           f"{'max E[L]':>8}  {'ΔE[L]':>8}")
+    print(hdr)
+    print("  " + "-" * (len(hdr) - 2))
+    for lbl in ordered:
+        r     = results[lbl]
         delta = r["max_el"] - grammar_max
-        delta_str = f"{delta:+.3f}" if label != "grammar" else "  baseline"
-        print(f"  {label:<20}  {len(r['token_strs']):>6}  "
-              f"{r['min_el']:>8.3f}  {r['mean_el']:>9.3f}  "
-              f"{r['max_el']:>8.3f}  {delta_str:>16}")
+        ds    = f"{delta:>+8.3f}" if lbl != "grammar" else "baseline"
+        print(f"  {lbl:<20}  {r['min_el']:>8.3f}  {r['mean_el']:>9.3f}  "
+              f"{r['max_el']:>8.3f}  {ds:>8}")
     print()
 
-    # Per-prompt top-5 detail
-    for label in ordered:
-        r = results[label]
-        print(f"  [{label.upper()}]  max E[L]={r['max_el']:.3f}  "
-              f"mean={r['mean_el']:.3f}")
-        print(f"    Top-5 recruited tokens:")
+    # ── k (active edges) table ───────────────────────────────────────────────
+    hdr2 = (f"  {'Prompt':<20}  {'min k':>6}  {'mean k':>7}  "
+            f"{'max k':>6}  {'Δmax_k':>8}  (of {ana_metrics.max_path_len * 2 // 2 * 2} total edges)")
+    print(hdr2)
+    print("  " + "-" * (len(hdr2) - 2))
+    for lbl in ordered:
+        r     = results[lbl]
+        dk    = r["max_k"] - grammar_max_k
+        dks   = f"{dk:>+8d}" if lbl != "grammar" else "baseline"
+        print(f"  {lbl:<20}  {r['min_k']:>6d}  {r['mean_k']:>7.1f}  "
+              f"{r['max_k']:>6d}  {dks:>8}")
+    print()
+
+    # ── Per-prompt detail ────────────────────────────────────────────────────
+    for lbl in ordered:
+        r = results[lbl]
+        print(f"  [{lbl.upper()}]  max E[L]={r['max_el']:.3f}  "
+              f"mean k={r['mean_k']:.1f}")
+        print(f"    Top-5 by E[L] (highest path recruitment):")
         for rank, (pos, el) in enumerate(r["top5_positions"], 1):
-            tok       = _clean_tok(r["token_strs"][pos])
-            predicted = _clean_tok(r["pred_tokens"][pos])
-            print(f"      {rank}.  pos={pos:3d}  E[L]={el:.3f}  "
-                  f"token='{tok}'  predicts='{predicted}'")
+            tok = _clean_tok(r["token_strs"][pos])
+            k   = r["k_values"][pos]
+            eps = r["epsilon_values"][pos]
+            pred = _clean_tok(r["pred_tokens"][pos])
+            print(f"      {rank}. pos={pos:3d}  E[L]={el:.3f}  "
+                  f"k={k:3d}  ε={eps:.2e}  "
+                  f"token='{tok}'  predicts='{pred}'")
         print()
 
-    # Recruitment Delta table
-    print(f"  RECRUITMENT DELTAS  (max E[L] vs grammar baseline = {grammar_max:.3f})")
-    print(f"  {'Prompt':<20}  {'Delta':>8}  Interpretation")
-    print("  " + "-" * 60)
-    for label in ordered:
-        if label == "grammar":
+    # ── Recruitment deltas ───────────────────────────────────────────────────
+    print(f"  RECRUITMENT DELTAS  (vs grammar  E[L]={grammar_max:.3f}  k={grammar_max_k})")
+    print(f"  {'Prompt':<20}  {'ΔE[L]':>8}  {'Δmax_k':>8}  Note")
+    print("  " + "-" * 64)
+    for lbl in ordered:
+        if lbl == "grammar":
             continue
-        delta = results[label]["max_el"] - grammar_max
-        flag  = ">>>" if delta > 2.0 else ">  " if delta > 0 else "=  "
-        print(f"  {label:<20}  {delta:>+8.3f}  {flag} "
-              + ("longer paths recruited" if delta > 0 else "no clear difference"))
+        r      = results[lbl]
+        del_el = r["max_el"] - grammar_max
+        del_k  = r["max_k"]  - grammar_max_k
+        flag   = ">>>" if del_el > 2.0 else ">  " if del_el > 0 else "=  "
+        print(f"  {lbl:<20}  {del_el:>+8.3f}  {del_k:>+8d}  "
+              f"{flag} {'longer paths + more edges' if del_el > 0 else 'no change'}")
     print()
 
 
 def save_json(
-    results:     Dict[str, Dict],
+    results:       Dict[str, Dict],
     ana_metrics,
-    model_name:  str,
-    active_fraction: float,
-    output_path: str,
+    model_name:    str,
+    mass_coverage: float,
+    output_path:   str,
 ) -> None:
-    payload = {
-        "model": model_name,
-        "active_subgraph_top_fraction": active_fraction,
-        "analytical_mean_path_length":  ana_metrics.mean_path_length,
-        "analytical_entropy_bits":      ana_metrics.entropy,
-        "analytical_max_path_len":      ana_metrics.max_path_len,
+    """
+    Serialise all per-token results to JSON.
+
+    Schema:
+      model                    : str
+      mass_coverage_fraction   : float   (e.g. 0.90)
+      analytical_mean_path_length: float
+      analytical_entropy_bits  : float
+      analytical_max_path_len  : int
+      prompts.<label>:
+        text                   : str
+        tokens                 : list[str]
+        empirical_mean_path_lengths : list[float|null]
+        k_edges                : list[int]           ← adaptive edge counts
+        epsilon_values         : list[float|null]    ← adaptive thresholds
+        predicted_tokens       : list[str]
+        max_E_L / mean_E_L / min_E_L : float
+        mean_k / max_k / min_k : float/int
+        top5_positions         : list[{position, token, E_L, k}]
+      recruitment_deltas_vs_grammar : dict[label → float]
+    """
+    payload: Dict[str, Any] = {
+        "model":                     model_name,
+        "mass_coverage_fraction":    mass_coverage,
+        "analytical_mean_path_length": float(ana_metrics.mean_path_length),
+        "analytical_entropy_bits":   float(ana_metrics.entropy),
+        "analytical_max_path_len":   int(ana_metrics.max_path_len),
         "prompts": {},
     }
 
     for label, r in results.items():
-        # Mask NaN to null for JSON serialisability
-        el_clean = [None if np.isnan(v) else round(v, 4) for v in r["el_values"]]
+        # Mask NaN / 0 to null for JSON serialisability
+        el_clean  = [None if np.isnan(v) else round(float(v), 4)
+                     for v in r["el_values"]]
+        eps_clean = [None if np.isnan(v) else round(float(v), 6)
+                     for v in r["epsilon_values"]]
+        k_clean   = [int(v) for v in r["k_values"]]
+
         payload["prompts"][label] = {
-            "text":                   r["prompt"],
-            "tokens":                 r["token_strs"],
+            "text":                        r["prompt"],
+            "tokens":                      r["token_strs"],
             "empirical_mean_path_lengths": el_clean,
-            "predicted_tokens":       r["pred_tokens"],
-            "n_active_edges":         r["n_active_edges"],
-            "max_E_L":                round(r["max_el"], 4),
-            "mean_E_L":               round(r["mean_el"], 4),
-            "min_E_L":                round(r["min_el"], 4),
+            "k_edges":                     k_clean,
+            "epsilon_values":              eps_clean,
+            "predicted_tokens":            r["pred_tokens"],
+            "max_E_L":                     round(float(r["max_el"]), 4),
+            "mean_E_L":                    round(float(r["mean_el"]), 4),
+            "min_E_L":                     round(float(r["min_el"]), 4),
+            "mean_k":                      round(float(r["mean_k"]), 2),
+            "max_k":                       int(r["max_k"]),
+            "min_k":                       int(r["min_k"]),
             "top5_positions": [
-                {"position": pos,
-                 "token":    r["token_strs"][pos],
-                 "E_L":      round(el, 4)}
+                {
+                    "position": pos,
+                    "token":    r["token_strs"][pos],
+                    "E_L":      round(float(el), 4),
+                    "k":        int(r["k_values"][pos]),
+                }
                 for pos, el in r["top5_positions"]
             ],
         }
 
     grammar_max = results.get("grammar", {}).get("max_el", 0.0)
     payload["recruitment_deltas_vs_grammar"] = {
-        label: round(r["max_el"] - grammar_max, 4)
+        label: round(float(r["max_el"]) - float(grammar_max), 4)
         for label, r in results.items()
         if label != "grammar"
     }
-    # Keep legacy key for backward compatibility with plot_synergy_gap.py
+    # Legacy key for backward compatibility with plot_synergy_gap.py
     if "reasoning" in results:
-        payload["recruitment_delta"] = payload["recruitment_deltas_vs_grammar"]["reasoning"]
-    elif len(payload["recruitment_deltas_vs_grammar"]) > 0:
-        last = list(payload["recruitment_deltas_vs_grammar"].values())[-1]
-        payload["recruitment_delta"] = last
+        payload["recruitment_delta"] = \
+            payload["recruitment_deltas_vs_grammar"]["reasoning"]
+    elif payload["recruitment_deltas_vs_grammar"]:
+        payload["recruitment_delta"] = \
+            list(payload["recruitment_deltas_vs_grammar"].values())[-1]
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
@@ -763,9 +853,10 @@ def main() -> None:
     parser.add_argument("--logic_puzzle", default=None,
                         help="Override Tier-3 logic puzzle prompt")
 
-    parser.add_argument("--active_fraction", type=float, default=ACTIVE_FRACTION,
-                        help=("Fraction of top-attributed edges to keep "
-                              f"(default: {ACTIVE_FRACTION})"))
+    parser.add_argument("--mass_coverage", type=float, default=MASS_COVERAGE,
+                        help=("Minimum fraction of attribution mass that the "
+                              "active subgraph must cover per token "
+                              f"(default: {MASS_COVERAGE})"))
     parser.add_argument("--output_dir",   default="results",
                         help="Output directory (default: results/)")
     parser.add_argument("--skip_tiers",   default="",
@@ -801,7 +892,7 @@ def main() -> None:
     log.info("max_path_len   : %d",  ana_metrics.max_path_len)
     log.info("Ana. H         : %.4f bits", ana_metrics.entropy)
     log.info("Ana. E[L]      : %.4f",      ana_metrics.mean_path_length)
-    log.info("active_fraction: %.0f%%",    args.active_fraction * 100)
+    log.info("mass_coverage  : %.0f%%",    args.mass_coverage * 100)
     log.info("Running %d prompt tiers: %s", len(prompts), list(prompts.keys()))
 
     # ── Analyse all tiers ──────────────────────────────────────────────────────
@@ -813,20 +904,21 @@ def main() -> None:
         all_results[label] = analyse_prompt(
             model, analyzer, text, label,
             device=args.device,
-            active_fraction=args.active_fraction,
+            mass_coverage=args.mass_coverage,
         )
 
     # ── Output ─────────────────────────────────────────────────────────────────
-    frac_tag     = f"top{int(args.active_fraction*100)}"
+    cov_tag      = f"mass{int(args.mass_coverage * 100)}"
     heatmap_path = os.path.join(args.output_dir,
-                                f"token_heatmap_{frac_tag}.png")
+                                f"token_heatmap_{cov_tag}.png")
     json_path    = os.path.join(args.output_dir,
-                                f"token_heatmap_{frac_tag}.json")
+                                f"token_heatmap_{cov_tag}.json")
 
-    print_summary(all_results, ana_metrics, args.active_fraction)
+    print_summary(all_results, ana_metrics, args.mass_coverage)
     plot_heatmap(all_results, ana_metrics, heatmap_path)
-    plot_el_timeseries(all_results, ana_metrics, heatmap_path)
-    save_json(all_results, ana_metrics, args.model, args.active_fraction, json_path)
+    plot_el_timeseries(all_results, ana_metrics, heatmap_path,
+                       mass_coverage=args.mass_coverage)
+    save_json(all_results, ana_metrics, args.model, args.mass_coverage, json_path)
 
     log.info("")
     log.info("Outputs:")

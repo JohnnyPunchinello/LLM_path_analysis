@@ -405,6 +405,130 @@ def test_pythia_2_8b_values(verbose: bool = False):
 
 
 # ---------------------------------------------------------------------------
+# G.  select_active_edges_by_mass_coverage  (mass-coverage rule)
+# ---------------------------------------------------------------------------
+
+def _mass_coverage(attn_scores, mlp_scores, frac=0.90):
+    """
+    Standalone re-implementation of select_active_edges_by_mass_coverage
+    for tests that must run without importing path_analyzer.
+    """
+    all_sc  = np.concatenate([attn_scores, mlp_scores])
+    total   = float(all_sc.sum())
+    L       = len(attn_scores)
+
+    if total <= 0.0:
+        return [True]*L, [True]*L, 0.0, 2*L
+
+    sorted_desc = np.sort(all_sc)[::-1]
+    cumsum      = np.cumsum(sorted_desc)
+    target      = frac * total
+    i           = int(np.searchsorted(cumsum, target, side="left"))
+    i           = min(i, len(all_sc) - 1)
+    epsilon     = float(sorted_desc[i])
+
+    active_attn = (attn_scores >= epsilon).tolist()
+    active_mlp  = (mlp_scores  >= epsilon).tolist()
+    k           = int(sum(active_attn) + sum(active_mlp))
+    return active_attn, active_mlp, epsilon, k
+
+
+def test_mass_coverage(verbose: bool = False):
+    print("\n─── G. select_active_edges_by_mass_coverage ─────────────────────")
+
+    # G1: covered mass >= target
+    rng = np.random.default_rng(0)
+    L   = 12
+    a   = rng.exponential(1.0, size=L).astype(np.float32)
+    m   = rng.exponential(1.0, size=L).astype(np.float32)
+    for frac in (0.50, 0.80, 0.90, 0.95, 1.00):
+        act_a, act_m, eps, k = _mass_coverage(a, m, frac)
+        all_sc    = np.concatenate([a, m])
+        covered   = float(np.concatenate([
+            a[np.array(act_a)], m[np.array(act_m)]]).sum())
+        total     = float(all_sc.sum())
+        ok        = (covered >= frac * total - 1e-9)
+        check(f"G1: coverage≥{frac:.0%}  (covered={covered:.4f}/"
+              f"total={total:.4f}={covered/total:.2%})",
+              ok,
+              f"frac={frac}  k={k}  eps={eps:.4f}")
+
+    # G2: monotonicity — larger fraction → same or more edges
+    fracs  = [0.50, 0.70, 0.90, 0.99]
+    ks     = []
+    for frac in fracs:
+        _, _, _, k = _mass_coverage(a, m, frac)
+        ks.append(k)
+    mono = all(ks[i] <= ks[i+1] for i in range(len(ks)-1))
+    check("G2: monotonicity  k(50%)≤k(70%)≤k(90%)≤k(99%)",
+          mono,
+          "  k=" + str(ks))
+
+    # G3: uniform scores → all edges active at any coverage level
+    L_u    = 8
+    a_u    = np.ones(L_u, dtype=np.float32)
+    m_u    = np.ones(L_u, dtype=np.float32)
+    _, _, _, k_u = _mass_coverage(a_u, m_u, 0.50)
+    check("G3: uniform scores → all 2L edges active (ties → all ≥ epsilon)",
+          k_u == 2 * L_u,
+          f"k={k_u}  expected={2*L_u}")
+
+    # G4: zero attribution → all edges active (flat-prior fallback)
+    a_z    = np.zeros(L, dtype=np.float32)
+    m_z    = np.zeros(L, dtype=np.float32)
+    act_a_z, act_m_z, eps_z, k_z = _mass_coverage(a_z, m_z, 0.90)
+    check("G4: zero-attribution fallback → all edges active  k=2L",
+          k_z == 2 * L and all(act_a_z) and all(act_m_z),
+          f"k={k_z}  eps={eps_z}")
+
+    # G5: concentrated signal → small k
+    # One dominant layer gets >90% of the mass — should need only 1 or 2 edges
+    a_conc       = np.zeros(L, dtype=np.float32)
+    m_conc       = np.zeros(L, dtype=np.float32)
+    a_conc[5]    = 100.0   # single dominant attn edge
+    _, _, _, k_c = _mass_coverage(a_conc, m_conc, 0.90)
+    check("G5: concentrated signal → k ≤ 2  (at most the dominant edge covers 90%)",
+          k_c <= 2,
+          f"k={k_c}")
+
+    # G6: spread signal → large k
+    # All layers equally weighted → need most edges to cover 90%
+    a_flat       = np.ones(L, dtype=np.float32)
+    m_flat       = np.ones(L, dtype=np.float32)
+    _, _, _, k_f = _mass_coverage(a_flat, m_flat, 0.90)
+    check("G6: flat signal (uniform) → k ≥ 0.85 * 2L",
+          k_f >= int(0.85 * 2 * L),
+          f"k={k_f}  threshold={int(0.85*2*L)}")
+
+    # G7: grammar vs logic_puzzle synthetic tokens
+    #   grammar    : attn dominated by first layer, rest ~0
+    #   logic      : attn spread evenly across all layers
+    a_gram  = np.array([50.0] + [0.01]*(L-1), dtype=np.float32)
+    m_gram  = np.array([0.01]*L, dtype=np.float32)
+    a_logic = np.ones(L, dtype=np.float32) * 2.0
+    m_logic = np.ones(L, dtype=np.float32) * 2.0
+    _, _, _, k_gram  = _mass_coverage(a_gram,  m_gram,  0.90)
+    _, _, _, k_logic = _mass_coverage(a_logic, m_logic, 0.90)
+    check("G7: grammar token k < logic_puzzle token k",
+          k_gram < k_logic,
+          f"grammar k={k_gram}  logic k={k_logic}")
+
+    # G8: epsilon = score at position i → active mask uses >=, not >
+    #   Ensures the boundary edge is always included when tied.
+    a_tie  = np.array([3.0, 2.0, 2.0, 1.0], dtype=np.float32)
+    m_tie  = np.zeros(4, dtype=np.float32)
+    # total = 8.0, target at 90% = 7.2
+    # sorted desc: [3,2,2,1], cumsum=[3,5,7,8]
+    # searchsorted(7.2) → index 2 (cumsum[2]=7 < 7.2, so i=3 after checking)
+    # Actually searchsorted([3,5,7,8], 7.2, side='left') = 3 → epsilon = sorted[3]=1.0
+    # → all 4 attn edges active (all ≥ 1.0)
+    _, _, eps_tie, k_tie = _mass_coverage(a_tie, m_tie, 0.90)
+    check("G8: tie-boundary → epsilon set to include all covering edges",
+          k_tie >= 3,   # at least the three highest
+          f"k={k_tie}  eps={eps_tie:.4f}")
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -438,6 +562,7 @@ def main():
     test_empirical_pruning(args.verbose)
     test_parallel(args.verbose)
     test_pythia_2_8b_values(args.verbose)
+    test_mass_coverage(args.verbose)
 
     print()
     print("=" * 68)

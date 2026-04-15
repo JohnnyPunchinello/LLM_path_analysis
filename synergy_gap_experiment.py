@@ -547,22 +547,26 @@ def check_accuracy(task_name: str, model, tokens: torch.Tensor,
 # =============================================================================
 
 def run_experiment(
-    model_names:      List[str],
-    task_names:       List[str],
-    n_samples:        int   = 50,
-    output_dir:       str   = "results",
-    device:           str   = "cuda",
-    epsilon_quantile: float = 0.25,
-    seed:             int   = 42,
-    resume_csv:       Optional[str] = None,
+    model_names:   List[str],
+    task_names:    List[str],
+    n_samples:     int   = 50,
+    output_dir:    str   = "results",
+    device:        str   = "cuda",
+    mass_coverage: float = 0.90,
+    seed:          int   = 42,
+    resume_csv:    Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Two-pass experiment loop.
+    Single-pass experiment loop with per-sample mass-coverage subgraph selection.
 
-    Pass 1 — collect AtP scores + accuracy for every sample.
-    Pass 2 — threshold at task-level ε, compute empirical path metrics.
+    For each sample the active subgraph is chosen adaptively:
+      select the MINIMUM number of edges whose combined attribution score
+      accounts for >= mass_coverage of that sample's total attribution mass.
+
+    This replaces the old two-pass approach (task-level quantile threshold).
     """
-    from path_analyzer import PathAnalyzer, _to_metrics
+    from path_analyzer import (PathAnalyzer, _to_metrics,
+                                select_active_edges_by_mass_coverage)
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -578,7 +582,6 @@ def run_experiment(
         log.info("Resumed from %s  (%d rows already done)", resume_csv, len(results))
 
     for model_name in model_names:
-        # Skip entire model if all its tasks are done
         remaining_tasks = [t for t in task_names
                            if (model_name, t) not in completed]
         if not remaining_tasks:
@@ -614,10 +617,13 @@ def run_experiment(
                 log.error("  Could not load task %s: %s", task_name, exc)
                 continue
 
-            # ── Pass 1: AtP scores + accuracy ──────────────────────────────
-            per_attn: List[np.ndarray] = []
-            per_mlp:  List[np.ndarray] = []
-            per_corr: List[bool]       = []
+            # ── Single-pass: AtP + accuracy + per-sample path metrics ──────
+            emp_H:        List[float] = []
+            emp_mu:       List[float] = []
+            emp_tau:      List[float] = []
+            emp_n_active: List[int]   = []
+            emp_epsilon:  List[float] = []
+            per_corr:     List[bool]  = []
 
             for i, sample in enumerate(samples):
                 try:
@@ -629,97 +635,83 @@ def run_experiment(
                     per_corr.append(
                         check_accuracy(task_name, model, tokens, sample, device))
 
-                    a_sc, m_sc = analyzer.compute_attribution_scores(tokens)
-                    per_attn.append(a_sc.cpu().float().numpy())
-                    per_mlp.append(m_sc.cpu().float().numpy())
+                    a_sc_t, m_sc_t = analyzer.compute_attribution_scores(tokens)
+                    a_sc = a_sc_t.cpu().float().numpy()
+                    m_sc = m_sc_t.cpu().float().numpy()
+
+                    # Per-sample mass-coverage active subgraph
+                    act_a, act_m, epsilon_s, k = \
+                        select_active_edges_by_mass_coverage(
+                            a_sc, m_sc, mass_coverage)
+
+                    m_obj = _to_metrics(analyzer._path_count_dp(act_a, act_m))
+                    emp_H.append(m_obj.entropy)
+                    emp_mu.append(m_obj.mean_path_length)
+                    emp_tau.append(m_obj.tail_mass_ratio)
+                    emp_n_active.append(k)
+                    emp_epsilon.append(epsilon_s)
 
                     if (i + 1) % 10 == 0:
-                        log.info("  … %d/%d", i + 1, len(samples))
+                        log.info("  … %d/%d  (last k=%d, ε=%.2e)",
+                                 i + 1, len(samples), k, epsilon_s)
 
                 except Exception as exc:
-                    log.warning("  Sample %d failed (pass 1): %s", i, exc)
+                    log.warning("  Sample %d failed: %s", i, exc)
 
-            if not per_attn:
+            if not emp_H:
                 log.warning("  No valid samples — skipping %s.", task_name)
                 continue
 
-            # ── Task-level ε ───────────────────────────────────────────────
-            all_scores = np.concatenate(
-                [np.concatenate(per_attn), np.concatenate(per_mlp)])
-            epsilon = float(np.quantile(all_scores, epsilon_quantile))
-            log.info("  ε = %.2e  (q=%.2f quantile)", epsilon, epsilon_quantile)
-
-            # ── Pass 2: empirical path metrics ─────────────────────────────
-            emp_H:   List[float] = []
-            emp_mu:  List[float] = []
-            emp_tau: List[float] = []
-            emp_n_active: List[float] = []
-
-            for i in range(len(per_attn)):
-                try:
-                    act_a = (per_attn[i] > epsilon).tolist()
-                    act_m = (per_mlp[i]  > epsilon).tolist()
-                    m     = _to_metrics(analyzer._path_count_dp(act_a, act_m))
-                    emp_H.append(m.entropy)
-                    emp_mu.append(m.mean_path_length)
-                    emp_tau.append(m.tail_mass_ratio)
-                    emp_n_active.append(
-                        sum(act_a) + sum(act_m))
-                except Exception as exc:
-                    log.warning("  Sample %d failed (pass 2): %s", i, exc)
-
-            if not emp_H:
-                continue
-
-            accuracy = float(np.mean(per_corr))
-            mean_H   = float(np.mean(emp_H))
-            std_H    = float(np.std(emp_H))  if len(emp_H) > 1 else 0.0
-            mean_mu  = float(np.mean(emp_mu))
-            finite_t = [t for t in emp_tau if np.isfinite(t)]
-            mean_tau = float(np.mean(finite_t)) if finite_t else float("inf")
+            accuracy   = float(np.mean(per_corr))
+            mean_H     = float(np.mean(emp_H))
+            std_H      = float(np.std(emp_H))  if len(emp_H) > 1 else 0.0
+            mean_mu    = float(np.mean(emp_mu))
+            finite_t   = [t for t in emp_tau if np.isfinite(t)]
+            mean_tau   = float(np.mean(finite_t)) if finite_t else float("inf")
             mean_n_act = float(np.mean(emp_n_active))
+            mean_eps   = float(np.mean(emp_epsilon))
 
             row: Dict[str, Any] = {
-                "model":                model_name,
-                "model_short":          _short_name(model_name),
-                "model_params_B":       MODEL_PARAMS_B.get(model_name, -1),
-                "family":               _infer_family(model_name),
-                "arch_type":            _arch_type(model_name),
-                "task":                 task_name,
-                "task_display":         TASKS[task_name]["display"],
-                "task_complexity":      TASKS[task_name]["complexity"],
-                "task_complexity_label":COMPLEXITY_LABELS[TASKS[task_name]["complexity"]],
-                "accuracy":             round(accuracy,  4),
+                "model":                 model_name,
+                "model_short":           _short_name(model_name),
+                "model_params_B":        MODEL_PARAMS_B.get(model_name, -1),
+                "family":                _infer_family(model_name),
+                "arch_type":             _arch_type(model_name),
+                "task":                  task_name,
+                "task_display":          TASKS[task_name]["display"],
+                "task_complexity":       TASKS[task_name]["complexity"],
+                "task_complexity_label": COMPLEXITY_LABELS[TASKS[task_name]["complexity"]],
+                "accuracy":              round(accuracy,   4),
                 # analytical
-                "analytical_entropy":   round(ana_metrics.entropy,          4),
-                "analytical_mean_path": round(ana_metrics.mean_path_length, 4),
-                "analytical_tail_ratio":round(ana_metrics.tail_mass_ratio,  4),
+                "analytical_entropy":    round(ana_metrics.entropy,          4),
+                "analytical_mean_path":  round(ana_metrics.mean_path_length, 4),
+                "analytical_tail_ratio": round(ana_metrics.tail_mass_ratio,  4),
                 # empirical
-                "empirical_entropy":    round(mean_H,   4),
-                "empirical_entropy_std":round(std_H,    4),
-                "empirical_mean_path":  round(mean_mu,  4),
-                "empirical_tail_ratio": round(mean_tau, 4),
-                "mean_active_edges":    round(mean_n_act, 2),
+                "empirical_entropy":     round(mean_H,    4),
+                "empirical_entropy_std": round(std_H,     4),
+                "empirical_mean_path":   round(mean_mu,   4),
+                "empirical_tail_ratio":  round(mean_tau,  4),
+                "mean_active_edges":     round(mean_n_act, 2),
                 # derived
-                "synergy_gap":          round(ana_metrics.entropy - mean_H, 4),
+                "synergy_gap":           round(ana_metrics.entropy - mean_H, 4),
                 # meta
-                "n_layers":             arch_info["n_layers"],
-                "architecture":         arch_info["architecture"],
-                "normalization":        arch_info["normalization"],
-                "max_path_len":         ana_metrics.max_path_len,
-                "epsilon":              round(float(epsilon), 8),
-                "epsilon_quantile":     epsilon_quantile,
-                "n_samples_used":       len(emp_H),
+                "n_layers":              arch_info["n_layers"],
+                "architecture":          arch_info["architecture"],
+                "normalization":         arch_info["normalization"],
+                "max_path_len":          ana_metrics.max_path_len,
+                "mean_epsilon":          round(mean_eps, 8),
+                "mass_coverage":         mass_coverage,
+                "n_samples_used":        len(emp_H),
             }
             results.append(row)
 
             log.info(
                 "  Acc=%.3f  H_ana=%.3f  H_emp=%.3f±%.3f  Gap=%.4f  "
-                "E[L]=%.2f  active_edges=%.1f",
+                "E[L]=%.2f  active_edges=%.1f  mean_ε=%.2e",
                 accuracy, ana_metrics.entropy, mean_H, std_H,
-                row["synergy_gap"], mean_mu, mean_n_act)
+                row["synergy_gap"], mean_mu, mean_n_act, mean_eps)
 
-            # Save after every (model, task) so we can resume
+            # Save incrementally after every (model, task) so we can resume
             _save_csv(results,
                       os.path.join(output_dir, "synergy_gap_results.csv"))
 
@@ -1184,7 +1176,9 @@ def main() -> None:
     # Experiment settings
     parser.add_argument("--n_samples",        type=int,   default=50)
     parser.add_argument("--device",           default="cuda")
-    parser.add_argument("--epsilon_quantile", type=float, default=0.25)
+    parser.add_argument("--mass_coverage",    type=float, default=0.90,
+        help=("Per-sample active subgraph: min edges covering this fraction "
+              "of attribution mass (default: 0.90)"))
     parser.add_argument("--seed",             type=int,   default=42)
     parser.add_argument("--output_dir",       default="results")
 
@@ -1221,18 +1215,18 @@ def main() -> None:
 
         log.info("Models (%d): %s", len(model_names), model_names)
         log.info("Tasks  (%d): %s", len(task_names),  task_names)
-        log.info("Samples/task: %d  |  device: %s  |  ε-quantile: %.2f",
-                 args.n_samples, args.device, args.epsilon_quantile)
+        log.info("Samples/task: %d  |  device: %s  |  mass_coverage: %.0f%%",
+                 args.n_samples, args.device, args.mass_coverage * 100)
 
         results = run_experiment(
-            model_names      = model_names,
-            task_names       = task_names,
-            n_samples        = args.n_samples,
-            output_dir       = output_dir,
-            device           = args.device,
-            epsilon_quantile = args.epsilon_quantile,
-            seed             = args.seed,
-            resume_csv       = args.resume,
+            model_names   = model_names,
+            task_names    = task_names,
+            n_samples     = args.n_samples,
+            output_dir    = output_dir,
+            device        = args.device,
+            mass_coverage = args.mass_coverage,
+            seed          = args.seed,
+            resume_csv    = args.resume,
         )
         _save_csv(results, csv_path)
         log.info("CSV saved -> %s", csv_path)

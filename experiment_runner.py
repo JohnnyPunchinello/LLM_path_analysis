@@ -415,15 +415,22 @@ def check_accuracy(task_name: str, model, tokens: torch.Tensor, sample: Dict) ->
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_experiment(
-    model_names:      List[str],
-    task_names:       List[str],
-    n_samples:        int   = 50,
-    output_dir:       str   = "results",
-    device:           str   = "cuda",
-    epsilon_quantile: float = 0.25,
-    seed:             int   = 42,
+    model_names:   List[str],
+    task_names:    List[str],
+    n_samples:     int   = 50,
+    output_dir:    str   = "results",
+    device:        str   = "cuda",
+    mass_coverage: float = 0.90,
+    seed:          int   = 42,
 ) -> List[Dict[str, Any]]:
-    from path_analyzer import PathAnalyzer, _to_metrics
+    """
+    Single-pass experiment loop with per-sample mass-coverage subgraph selection.
+
+    For each sample the active subgraph is chosen so that the minimum number
+    of edges covering >= mass_coverage of the total attribution mass are kept.
+    """
+    from path_analyzer import (PathAnalyzer, _to_metrics,
+                                select_active_edges_by_mass_coverage)
 
     os.makedirs(output_dir, exist_ok=True)
     results: List[Dict[str, Any]] = []
@@ -459,68 +466,59 @@ def run_experiment(
                 log.error("  Could not load task %s: %s", task_name, exc)
                 continue
 
-            # ── Pass 1: attribution scores + accuracy ──
-            per_attn: List[np.ndarray] = []
-            per_mlp:  List[np.ndarray] = []
-            per_corr: List[bool]       = []
+            # ── Single-pass: AtP + accuracy + per-sample path metrics ──────
+            emp_H:        List[float] = []
+            emp_mu:       List[float] = []
+            emp_tau:      List[float] = []
+            emp_n_active: List[int]   = []
+            emp_epsilon:  List[float] = []
+            per_corr:     List[bool]  = []
 
             for i, sample in enumerate(samples):
                 try:
                     tokens = model.to_tokens(
                         sample["prompt"], prepend_bos=True
                     ).to(device)
-                    # truncate long prompts to avoid OOM
                     if tokens.shape[-1] > 512:
                         tokens = tokens[:, -512:]
 
                     per_corr.append(check_accuracy(task_name, model, tokens, sample))
 
-                    a_sc, m_sc = analyzer.compute_attribution_scores(tokens)
-                    per_attn.append(a_sc.cpu().float().numpy())
-                    per_mlp.append(m_sc.cpu().float().numpy())
+                    a_sc_t, m_sc_t = analyzer.compute_attribution_scores(tokens)
+                    a_sc = a_sc_t.cpu().float().numpy()
+                    m_sc = m_sc_t.cpu().float().numpy()
+
+                    # Per-sample mass-coverage active subgraph
+                    act_a, act_m, epsilon_s, k = \
+                        select_active_edges_by_mass_coverage(
+                            a_sc, m_sc, mass_coverage)
+
+                    m_obj = _to_metrics(analyzer._path_count_dp(act_a, act_m))
+                    emp_H.append(m_obj.entropy)
+                    emp_mu.append(m_obj.mean_path_length)
+                    emp_tau.append(m_obj.tail_mass_ratio)
+                    emp_n_active.append(k)
+                    emp_epsilon.append(epsilon_s)
 
                     if (i + 1) % 10 == 0:
-                        log.info("  … %d/%d samples", i + 1, len(samples))
+                        log.info("  … %d/%d samples  (last k=%d, ε=%.2e)",
+                                 i + 1, len(samples), k, epsilon_s)
 
                 except Exception as exc:
-                    log.warning("  Sample %d failed (pass 1): %s", i, exc)
+                    log.warning("  Sample %d failed: %s", i, exc)
 
-            if not per_attn:
+            if not emp_H:
                 log.warning("  No valid samples for %s — skipping.", task_name)
                 continue
 
-            # ── Task-level epsilon ──
-            all_scores = np.concatenate(
-                [np.concatenate(per_attn), np.concatenate(per_mlp)]
-            )
-            epsilon = float(np.quantile(all_scores, epsilon_quantile))
-            log.info("  ε=%.2e  (q=%.2f)", epsilon, epsilon_quantile)
-
-            # ── Pass 2: empirical path metrics ──
-            emp_H:   List[float] = []
-            emp_mu:  List[float] = []
-            emp_tau: List[float] = []
-
-            for i in range(len(per_attn)):
-                try:
-                    act_a = (per_attn[i] > epsilon).tolist()
-                    act_m = (per_mlp[i]  > epsilon).tolist()
-                    m     = _to_metrics(analyzer._path_count_dp(act_a, act_m))
-                    emp_H.append(m.entropy)
-                    emp_mu.append(m.mean_path_length)
-                    emp_tau.append(m.tail_mass_ratio)
-                except Exception as exc:
-                    log.warning("  Sample %d failed (pass 2): %s", i, exc)
-
-            if not emp_H:
-                continue
-
-            accuracy  = float(np.mean(per_corr))
-            mean_H    = float(np.mean(emp_H))
-            std_H     = float(np.std(emp_H))   if len(emp_H) > 1 else 0.0
-            mean_mu   = float(np.mean(emp_mu))
-            finite    = [t for t in emp_tau if np.isfinite(t)]
-            mean_tau  = float(np.mean(finite)) if finite else float("inf")
+            accuracy   = float(np.mean(per_corr))
+            mean_H     = float(np.mean(emp_H))
+            std_H      = float(np.std(emp_H))  if len(emp_H) > 1 else 0.0
+            mean_mu    = float(np.mean(emp_mu))
+            finite     = [t for t in emp_tau if np.isfinite(t)]
+            mean_tau   = float(np.mean(finite)) if finite else float("inf")
+            mean_n_act = float(np.mean(emp_n_active))
+            mean_eps   = float(np.mean(emp_epsilon))
 
             result: Dict[str, Any] = {
                 "model":                   model_name,
@@ -533,26 +531,28 @@ def run_experiment(
                 "analytical_mean_path":    round(ana_metrics.mean_path_length, 4),
                 "analytical_tail_ratio":   round(ana_metrics.tail_mass_ratio,  4),
                 # ── empirical ──
-                "empirical_entropy":       round(mean_H,   4),
-                "empirical_entropy_std":   round(std_H,    4),
-                "empirical_mean_path":     round(mean_mu,  4),
-                "empirical_tail_ratio":    round(mean_tau, 4),
+                "empirical_entropy":       round(mean_H,    4),
+                "empirical_entropy_std":   round(std_H,     4),
+                "empirical_mean_path":     round(mean_mu,   4),
+                "empirical_tail_ratio":    round(mean_tau,  4),
+                "mean_active_edges":       round(mean_n_act, 2),
                 # ── derived ──
                 "synergy_gap":             round(ana_metrics.entropy - mean_H, 4),
                 # ── meta ──
                 "n_layers":                arch_info["n_layers"],
                 "architecture":            arch_info["architecture"],
-                "epsilon":                 round(float(epsilon), 8),
-                "epsilon_quantile":        epsilon_quantile,
+                "mean_epsilon":            round(mean_eps, 8),
+                "mass_coverage":           mass_coverage,
                 "n_samples_used":          len(emp_H),
                 "eval_type":               TASKS[task_name]["eval_type"],
             }
             results.append(result)
 
             log.info(
-                "  Acc=%.3f  H_ana=%.3f  H_emp=%.3f±%.3f  Gap=%.3f  E[L]=%.2f",
+                "  Acc=%.3f  H_ana=%.3f  H_emp=%.3f±%.3f  Gap=%.3f  "
+                "E[L]=%.2f  k=%.1f  ε=%.2e",
                 accuracy, ana_metrics.entropy, mean_H, std_H,
-                result["synergy_gap"], mean_mu,
+                result["synergy_gap"], mean_mu, mean_n_act, mean_eps,
             )
 
         del model
@@ -786,8 +786,9 @@ Tasks available:
     p.add_argument("--output_dir",   type=str, default="results")
     p.add_argument("--device",       type=str,
                    default="cuda" if torch.cuda.is_available() else "cpu")
-    p.add_argument("--epsilon_quantile", type=float, default=0.25,
-                   help="AtP threshold quantile (default 0.25 → top-75%% active)")
+    p.add_argument("--mass_coverage",    type=float, default=0.90,
+                   help=("Per-sample active subgraph: min edges covering this "
+                         "fraction of attribution mass (default: 0.90)"))
     p.add_argument("--seed",         type=int, default=42)
     p.add_argument("--dtype",        type=str, default="float16",
                    choices=["float16", "bfloat16", "float32"])
@@ -811,7 +812,7 @@ def main() -> None:
     log.info("Models (%d)  : %s", len(model_names), model_names)
     log.info("Tasks  (%d)  : %s", len(task_names),  task_names)
     log.info("Samples/task : %d", args.n_samples)
-    log.info("ε quantile   : %.2f", args.epsilon_quantile)
+    log.info("mass_coverage: %.0f%%", args.mass_coverage * 100)
 
     if args.device.startswith("cuda") and torch.cuda.is_available():
         p = torch.cuda.get_device_properties(0)
@@ -823,7 +824,7 @@ def main() -> None:
         n_samples=args.n_samples,
         output_dir=args.output_dir,
         device=args.device,
-        epsilon_quantile=args.epsilon_quantile,
+        mass_coverage=args.mass_coverage,
         seed=args.seed,
     )
 

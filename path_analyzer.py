@@ -508,6 +508,78 @@ def _to_metrics(counts: np.ndarray, cutoff_k: Optional[int] = None) -> PathMetri
     )
 
 
+def select_active_edges_by_mass_coverage(
+    attn_scores:   np.ndarray,
+    mlp_scores:    np.ndarray,
+    mass_fraction: float = 0.90,
+) -> Tuple[List[bool], List[bool], float, int]:
+    """
+    Select the MINIMUM number of edges whose combined attribution scores
+    account for >= mass_fraction of total attribution mass.
+
+    Analogous to nucleus (top-p) sampling applied to edge importance:
+    instead of fixing a percentage of edges, we fix a coverage target and let
+    the attribution distribution determine how many edges are needed.
+
+    Behaviour
+    ---------
+    Simple tokens  → attribution concentrated in a few dominant layers
+                     → small k (sparse active subgraph)
+    Complex tokens → attribution spread across many layers
+                     → large k (dense active subgraph)
+
+    Algorithm
+    ---------
+    1. Pool all 2L attribution scores.
+    2. Sort descending; build cumulative sum.
+    3. Find the smallest index i where cumsum[i] >= mass_fraction * total.
+    4. epsilon = sorted_scores[i]  (the score of the i-th edge, 0-based).
+    5. Mark every edge with score >= epsilon as active.
+       (Ties at epsilon are included, so actual coverage >= mass_fraction.)
+
+    Parameters
+    ----------
+    attn_scores   : float array [n_layers] — AtP magnitudes, attention edges
+    mlp_scores    : float array [n_layers] — AtP magnitudes, MLP edges
+    mass_fraction : float in (0, 1]       — coverage target (default 0.90)
+
+    Returns
+    -------
+    active_attn : List[bool]  — per-layer attention edge active mask
+    active_mlp  : List[bool]  — per-layer MLP edge active mask
+    epsilon     : float       — threshold (k-th highest edge score)
+    k_edges     : int         — number of edges selected
+    """
+    all_sc = np.concatenate([attn_scores, mlp_scores])
+    total  = float(all_sc.sum())
+    n      = len(all_sc)
+    L      = len(attn_scores)
+
+    # ── Edge case: zero attribution ──────────────────────────────────────────
+    if total <= 0.0:
+        # No signal; uniform prior — mark all edges active
+        return [True] * L, [True] * L, 0.0, 2 * L
+
+    # ── Cumulative coverage ──────────────────────────────────────────────────
+    sorted_desc = np.sort(all_sc)[::-1]          # descending
+    cumsum      = np.cumsum(sorted_desc)         # monotone increasing → 0..total
+    target      = mass_fraction * total
+
+    # Smallest 0-based index i where cumsum[i] >= target
+    i       = int(np.searchsorted(cumsum, target, side="left"))
+    i       = min(i, n - 1)                      # clamp to last valid index
+    epsilon = float(sorted_desc[i])
+
+    # ── Build masks ──────────────────────────────────────────────────────────
+    # Use >= so that ties at epsilon are included
+    # (can only increase coverage beyond mass_fraction)
+    active_attn = (attn_scores >= epsilon).tolist()
+    active_mlp  = (mlp_scores  >= epsilon).tolist()
+    k_edges     = int(sum(active_attn) + sum(active_mlp))
+
+    return active_attn, active_mlp, epsilon, k_edges
+
+
 def path_entropy(distribution: np.ndarray) -> float:
     """H(π) = −Σ π(l) log₂ π(l)"""
     p = distribution[distribution > 0.0]
