@@ -1,0 +1,718 @@
+#!/usr/bin/env python3
+"""
+active_subgraph_dot.py
+======================
+Generate a proper computational graph of the active subgraph for a
+transformer on one or more task prompts.
+
+Outputs (per task)
+------------------
+  <stem>_<task_n>.md   — Mermaid.js flowchart (renders in GitHub / VS Code /
+                          https://mermaid.live)
+  <stem>_<task_n>.dot  — Graphviz DOT source
+  <stem>_<task_n>.svg  — Rendered SVG (requires: pip install graphviz)
+
+Layout
+------
+  Vertical stack, top → bottom:
+
+    [Embedding]
+         |
+    ╔══ Layer 0 ══════════════════════════════════════╗  (dashed box)
+    ║                                                  ║
+    ║   ╔═══ Multi-Head Attention ════════╗            ║
+    ║   ║  [H0●] [H1○] [H2●] ... [Hn●]  ║            ║
+    ║   ╚═════════════════════════════════╝            ║
+    ║                      ↓                           ║
+    ║                    (Σα) ←─ ─ ─ (residual)        ║
+    ║                      ↓                           ║
+    ║                   [FFN]                          ║
+    ║                      ↓                           ║
+    ║                    (Σα) ←─ ─ ─ (residual)        ║
+    ╚══════════════════════════════════════════════════╝
+         |
+    ╔══ Layer 1 ══════════════════════════════════════╗
+    ...
+
+  Active head / block  : coloured fill + bold border
+  Inactive             : grey
+  Residual skip path   : dashed arrow labelled α
+  Summation node       : circle labelled Σα
+
+Usage
+-----
+  # Single task, GPT-2 (CPU)
+  python active_subgraph_dot.py \\
+      --model gpt2 --device cpu \\
+      --task "Alice is the mother of Bob. Bob is the mother of Carol. \
+              Who is Alice's grandchild?" \\
+      --label "2-hop reasoning" \\
+      --out graphs/2hop
+
+  # Multiple tasks (one .md / .svg per task)
+  python active_subgraph_dot.py \\
+      --model gpt2 --device cpu \\
+      --tasks "The cat sat on the mat." \\
+              "What is 7 times 8? The answer is" \\
+              "Alice is the mother of Bob. Bob is the mother of Carol. \
+               Who is Alice's grandchild?" \\
+      --labels "Simple" "Arithmetic" "2-hop" \\
+      --out graphs/gpt2
+
+  View the .md file at https://mermaid.live  (paste the content)
+  or open the .svg directly in any browser.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import textwrap
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+import numpy as np
+import torch
+
+from transformer_lens import HookedTransformer
+from path_analyzer import PathAnalyzer, select_active_edges_by_mass_coverage
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Colour helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _lerp_hex(c1: str, c2: str, t: float) -> str:
+    """Linear interpolate between two hex colours; t in [0, 1]."""
+    r1, g1, b1 = int(c1[1:3], 16), int(c1[3:5], 16), int(c1[5:7], 16)
+    r2, g2, b2 = int(c2[1:3], 16), int(c2[3:5], 16), int(c2[5:7], 16)
+    r = int(r1 + (r2 - r1) * t)
+    g = int(g1 + (g2 - g1) * t)
+    b = int(b1 + (b2 - b1) * t)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+_ATTN_LO  = "#fddbc7"   # pale orange
+_ATTN_HI  = "#d62728"   # deep red
+_MLP_LO   = "#d1e5f0"   # pale blue
+_MLP_HI   = "#1f77b4"   # deep blue
+_INACTIVE  = "#f4f4f4"
+_SIGMA_BG  = "#ffffff"
+
+
+def _attn_colour(score_norm: float) -> str:
+    return _lerp_hex(_ATTN_LO, _ATTN_HI, max(0.0, min(1.0, score_norm)))
+
+
+def _mlp_colour(score_norm: float) -> str:
+    return _lerp_hex(_MLP_LO, _MLP_HI, max(0.0, min(1.0, score_norm)))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Model loading
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _is_llama_family(name: str) -> bool:
+    return any(k in name.lower() for k in ("llama", "mistral", "gemma", "falcon"))
+
+
+def load_model(model_name: str, device: str = "cuda",
+               hf_token: Optional[str] = None) -> HookedTransformer:
+    resolved = (hf_token
+                or os.environ.get("HF_TOKEN")
+                or os.environ.get("HUGGING_FACE_HUB_TOKEN"))
+    if resolved:
+        import huggingface_hub
+        huggingface_hub.login(token=resolved, add_to_git_credential=False)
+
+    device = device if torch.cuda.is_available() else "cpu"
+    extra: dict = {}
+    if _is_llama_family(model_name):
+        extra = dict(fold_ln=False, center_writing_weights=False,
+                     center_unembed=False)
+
+    if device == "cuda":
+        try:
+            from transformers import BitsAndBytesConfig
+            bnb = BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+            )
+            model = HookedTransformer.from_pretrained(
+                model_name, quantization_config=bnb,
+                device_map="auto", **extra)
+            print(f"Loaded {model_name} with 4-bit NF4.")
+            return model
+        except Exception as e:
+            print(f"4-bit failed ({e}); loading in full precision.")
+
+    model = HookedTransformer.from_pretrained(model_name, **extra)
+    model.eval()
+    if device == "cuda":
+        model = model.to(device)
+    return model
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-head attribution scoring
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compute_per_head_scores(
+    model: HookedTransformer,
+    tokens: torch.Tensor,
+    target_pos: int = -1,
+    target_token_idx: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute per-head attribution scores via gradient × activation on hook_z.
+
+    hook_z has shape [batch, seq, n_heads, d_head].
+    Score for head h in layer l:
+        s(l, h) = mean_{seq, d_head} | grad_z[l,h] * z[l,h] |
+
+    Falls back to layer-level scoring if hook_z is unavailable.
+
+    Returns
+    -------
+    head_scores : float ndarray [n_layers, n_heads]
+    mlp_scores  : float ndarray [n_layers]
+    """
+    n_layers = model.cfg.n_layers
+    n_heads  = model.cfg.n_heads
+    is_ao    = bool(getattr(model.cfg, "attn_only", False))
+
+    with torch.no_grad():
+        logits_det = model(tokens, return_type="logits")
+    if target_token_idx is None:
+        target_token_idx = int(logits_det[0, target_pos].argmax())
+
+    head_act_store: dict = {}
+    mlp_act_store:  dict = {}
+    fwd_hooks = []
+
+    def _anchor(act, hook):
+        return act.detach().float().requires_grad_(True)
+    fwd_hooks.append(("blocks.0.hook_resid_pre", _anchor))
+
+    for l in range(n_layers):
+        def _z(act, hook, ll=l):
+            if act.requires_grad:
+                act.retain_grad()
+            head_act_store[ll] = act
+            return act
+        fwd_hooks.append((f"blocks.{l}.attn.hook_z", _z))
+
+        if not is_ao:
+            def _mlp(act, hook, ll=l):
+                if act.requires_grad:
+                    act.retain_grad()
+                mlp_act_store[ll] = act
+                return act
+            fwd_hooks.append((f"blocks.{l}.hook_mlp_out", _mlp))
+
+    try:
+        with torch.enable_grad():
+            logits = model.run_with_hooks(
+                tokens, fwd_hooks=fwd_hooks, return_type="logits")
+            logits[0, target_pos, target_token_idx].backward()
+    except RuntimeError as exc:
+        print(f"  Gradient failed: {exc}. Returning zero scores.")
+        return np.zeros((n_layers, n_heads)), np.zeros(n_layers)
+
+    head_scores = np.zeros((n_layers, n_heads), dtype=np.float32)
+    mlp_scores  = np.zeros(n_layers, dtype=np.float32)
+
+    for l in range(n_layers):
+        act  = head_act_store.get(l)
+        if act is not None and act.grad is not None:
+            a = act.detach().float()       # [1, seq, n_heads, d_head]
+            g = act.grad.detach().float()
+            # [n_heads] — mean over batch=0, seq, d_head
+            per_h = (a * g).abs().mean(dim=[0, 1, 3])
+            head_scores[l] = per_h.cpu().numpy()
+
+        ma = mlp_act_store.get(l)
+        if ma is not None and ma.grad is not None:
+            a = ma.detach().float()
+            g = ma.grad.detach().float()
+            mlp_scores[l] = float((a * g).abs().mean())
+
+    return head_scores, mlp_scores
+
+
+def _active_heads(head_scores: np.ndarray, layer: int,
+                  rel_threshold: float = 0.15) -> List[bool]:
+    """
+    Head h in layer l is active if its score ≥ rel_threshold × max score in that layer.
+    """
+    row = head_scores[layer]
+    mx  = row.max()
+    if mx <= 0.0:
+        return [False] * len(row)
+    return (row >= rel_threshold * mx).tolist()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mermaid.js generator
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _mermaid_node_id(*parts) -> str:
+    return "_".join(str(p) for p in parts)
+
+
+def build_mermaid(
+    model_name:   str,
+    n_layers:     int,
+    n_heads:      int,
+    head_scores:  np.ndarray,      # [n_layers, n_heads]
+    mlp_scores:   np.ndarray,      # [n_layers]
+    active_attn:  List[bool],      # [n_layers]  layer-level
+    active_mlp:   List[bool],      # [n_layers]
+    task_text:    str,
+    task_label:   str,
+    mass_coverage: float,
+    epsilon:      float,
+    k_edges:      int,
+    is_attn_only: bool = False,
+    head_threshold: float = 0.15,
+) -> str:
+    """Return a Mermaid.js flowchart string."""
+
+    # Normalise scores for colour mapping
+    hs_max = head_scores.max() if head_scores.max() > 0 else 1.0
+    ms_max = mlp_scores.max()  if mlp_scores.max()  > 0 else 1.0
+
+    lines: List[str] = []
+
+    # ── Header ───────────────────────────────────────────────────────────────
+    wrapped = textwrap.shorten(task_text, width=70, placeholder=" ...")
+    lines += [
+        "---",
+        f"title: \"{task_label} | {model_name} | coverage={mass_coverage:.0%}  k={k_edges}\"",
+        "---",
+        "%%{ init: { 'theme': 'base', 'themeVariables': {",
+        "    'background':    '#ffffff',",
+        "    'primaryColor':  '#f4f4f4',",
+        "    'lineColor':     '#555555',",
+        "    'fontSize':      '13px'",
+        "} } }%%",
+        "flowchart TB",
+        "",
+        "  %% ── Class definitions ─────────────────────────────────────────",
+        "  classDef active_head  fill:#d62728,stroke:#9a1a1a,stroke-width:2px,color:#fff",
+        "  classDef inactive_head fill:#f4f4f4,stroke:#cccccc,stroke-width:1px,color:#aaa",
+        "  classDef active_mlp   fill:#1f77b4,stroke:#1a5276,stroke-width:2px,color:#fff",
+        "  classDef inactive_mlp fill:#f4f4f4,stroke:#cccccc,stroke-width:1px,color:#aaa",
+        "  classDef sigma        fill:#fff,stroke:#444,stroke-width:1.5px,color:#333,font-size:14px",
+        "  classDef io_node      fill:#f0f0f0,stroke:#555,stroke-width:2px,color:#222",
+        "",
+        "  %% ── Prompt ──────────────────────────────────────────────────────",
+        f'  PROMPT[/"📝 {wrapped}"/]:::io_node',
+        "  EMBED[\"🔷 Embedding\"]:::io_node",
+        "  PROMPT --> EMBED",
+        "",
+    ]
+
+    prev_sum = "EMBED"   # ID of node feeding into next layer
+
+    # ── Layers ───────────────────────────────────────────────────────────────
+    for l in range(n_layers):
+        n_act_h  = 0
+        act_h    = _active_heads(head_scores, l, head_threshold)
+
+        sa_id    = _mermaid_node_id("SA", l)     # Σα after attn
+        sm_id    = _mermaid_node_id("SM", l)     # Σα after MLP
+        ffn_id   = _mermaid_node_id("FFN", l)
+
+        # Layer summary for subgraph label
+        n_act_h   = sum(act_h) if active_attn[l] else 0
+        head_info = f"{n_act_h}/{n_heads} heads" if not is_attn_only else ""
+        mlp_info  = "FFN ✓" if active_mlp[l] else "FFN ✗"
+        sg_label  = (f"Layer {l}  |  Attn: {head_info}  {mlp_info}"
+                     if not is_attn_only else f"Layer {l}  |  {head_info}")
+
+        lines.append(f"  subgraph L{l}[\"{sg_label}\"]")
+        lines.append(f"    direction TB")
+
+        # Per-head nodes
+        head_ids = []
+        for h in range(n_heads):
+            hid    = _mermaid_node_id("H", l, h)
+            head_ids.append(hid)
+            if active_attn[l] and act_h[h]:
+                score_n = float(head_scores[l, h]) / hs_max
+                lines.append(f"    {hid}[\"H{h} ●\"]:::active_head")
+            else:
+                lines.append(f"    {hid}[\"H{h} ○\"]:::inactive_head")
+
+        # Σα after attention
+        lines.append(f"    {sa_id}((\"Σα\")):::sigma")
+
+        # MLP / FFN
+        if not is_attn_only:
+            m_norm = float(mlp_scores[l]) / ms_max
+            if active_mlp[l]:
+                lines.append(f"    {ffn_id}[\"FFN  L{l}\"]:::active_mlp")
+            else:
+                lines.append(f"    {ffn_id}[\"FFN  L{l}\"]:::inactive_mlp")
+            # Σα after MLP
+            lines.append(f"    {sm_id}((\"Σα\")):::sigma")
+
+        lines.append("  end")
+        lines.append("")
+
+        # ── Edges into this layer ─────────────────────────────────────────
+        # Residual skip: prev_sum --dashed--> Σα_attn  (always)
+        lines.append(f"  {prev_sum} -. α .-> {sa_id}")
+
+        for h, hid in enumerate(head_ids):
+            if active_attn[l] and act_h[h]:
+                lines.append(f"  {prev_sum} --> {hid}")
+                lines.append(f"  {hid} --> {sa_id}")
+            # inactive heads: draw thin edge to Σα (no arrow through head)
+
+        if not is_attn_only:
+            # Residual skip: Σα_attn --dashed--> Σα_mlp
+            lines.append(f"  {sa_id} -. α .-> {sm_id}")
+            if active_mlp[l]:
+                lines.append(f"  {sa_id} --> {ffn_id}")
+                lines.append(f"  {ffn_id} --> {sm_id}")
+            prev_sum = sm_id
+        else:
+            prev_sum = sa_id
+
+        lines.append("")
+
+    # ── Output ───────────────────────────────────────────────────────────────
+    lines += [
+        "  OUT[\"🔶 Logits / Output\"]:::io_node",
+        f"  {prev_sum} --> OUT",
+        "",
+        f"  %% Stats: k={k_edges} active edges  epsilon={epsilon:.5f}  "
+        f"coverage={mass_coverage:.0%}",
+    ]
+
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Graphviz DOT generator
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_dot(
+    model_name:   str,
+    n_layers:     int,
+    n_heads:      int,
+    head_scores:  np.ndarray,
+    mlp_scores:   np.ndarray,
+    active_attn:  List[bool],
+    active_mlp:   List[bool],
+    task_text:    str,
+    task_label:   str,
+    mass_coverage: float,
+    epsilon:      float,
+    k_edges:      int,
+    is_attn_only: bool = False,
+    head_threshold: float = 0.15,
+) -> str:
+    """Return a Graphviz DOT string."""
+
+    hs_max = head_scores.max() if head_scores.max() > 0 else 1.0
+    ms_max = mlp_scores.max()  if mlp_scores.max()  > 0 else 1.0
+    wrapped = textwrap.shorten(task_text, width=60, placeholder=" ...")
+
+    lines: List[str] = []
+    lines += [
+        'digraph active_subgraph {',
+        '  rankdir=TB;',
+        '  splines=ortho;',
+        '  nodesep=0.35;',
+        '  ranksep=0.45;',
+        '  bgcolor="#ffffff";',
+        f'  label="{task_label} | {model_name} | '
+        f'coverage={mass_coverage:.0%}  k={k_edges}\\n\\"{wrapped}\\"";',
+        '  labelloc=t; fontsize=11; fontname="Helvetica";',
+        '',
+        '  // Global node defaults',
+        '  node [fontname="Helvetica", fontsize=9];',
+        '  edge [fontname="Helvetica", fontsize=8];',
+        '',
+    ]
+
+    def dot_node(nid, label, shape="box", style="filled",
+                 fillcolor="#f4f4f4", color="#cccccc",
+                 penwidth=1.0, fontcolor="#888888", **kw):
+        extras = " ".join(f'{k}="{v}"' for k, v in kw.items())
+        return (f'  {nid} [label="{label}", shape={shape}, style="{style}", '
+                f'fillcolor="{fillcolor}", color="{color}", '
+                f'penwidth={penwidth:.1f}, fontcolor="{fontcolor}" {extras}];')
+
+    def dot_edge(src, dst, style="solid", color="#555555",
+                 penwidth=1.5, label="", constraint=True, **kw):
+        attrs = [f'style="{style}"', f'color="{color}"',
+                 f'penwidth={penwidth:.1f}']
+        if label:
+            attrs.append(f'label="{label}"')
+        if not constraint:
+            attrs.append('constraint=false')
+        attrs += [f'{k}="{v}"' for k, v in kw.items()]
+        return f'  {src} -> {dst} [{", ".join(attrs)}];'
+
+    # ── Input ────────────────────────────────────────────────────────────────
+    lines.append(dot_node("EMBED", "Embedding", shape="box",
+                           fillcolor="#e8e8e8", color="#555555",
+                           penwidth=1.5, fontcolor="#222222"))
+    lines.append("")
+
+    prev_sum = "EMBED"
+
+    for l in range(n_layers):
+        act_h  = _active_heads(head_scores, l, head_threshold)
+        n_ah   = sum(act_h) if active_attn[l] else 0
+        sa_id  = f"SA_{l}"
+        sm_id  = f"SM_{l}"
+        ffn_id = f"FFN_{l}"
+
+        sg_label = (f"Layer {l}  |  {n_ah}/{n_heads} heads"
+                    + ("  FFN ✓" if active_mlp[l] else "  FFN ✗")
+                    if not is_attn_only else f"Layer {l}  |  {n_ah}/{n_heads} heads")
+
+        lines.append(f'  subgraph cluster_L{l} {{')
+        lines.append(f'    label="{sg_label}"; style=dashed; '
+                     f'color="#888888"; bgcolor="#fafafa"; '
+                     f'fontsize=9; fontname="Helvetica-Oblique";')
+
+        # ── Head nodes (arranged in a rank) ──────────────────────────────
+        lines.append(f'    {{ rank=same;')
+        for h in range(n_heads):
+            hid = f"H_{l}_{h}"
+            if active_attn[l] and act_h[h]:
+                fc = _attn_colour(float(head_scores[l, h]) / hs_max)
+                lines.append("    " + dot_node(
+                    hid, f"H{h}", shape="ellipse",
+                    fillcolor=fc, color="#9a1a1a",
+                    penwidth=2.0, fontcolor="#ffffff"))
+            else:
+                lines.append("    " + dot_node(
+                    hid, f"H{h}", shape="ellipse",
+                    fillcolor=_INACTIVE, color="#cccccc",
+                    penwidth=0.8, fontcolor="#aaaaaa"))
+        lines.append(f'    }}')
+
+        # Σα after attention
+        lines.append("    " + dot_node(
+            sa_id, "\u03a3\u03b1", shape="circle",
+            fillcolor=_SIGMA_BG, color="#444444",
+            penwidth=1.5, fontcolor="#333333",
+            width="0.35", height="0.35", fixedsize="true"))
+
+        if not is_attn_only:
+            # FFN node
+            m_norm = float(mlp_scores[l]) / ms_max
+            if active_mlp[l]:
+                fc_m = _mlp_colour(m_norm)
+                lines.append("    " + dot_node(
+                    ffn_id, f"FFN  L{l}", shape="box",
+                    fillcolor=fc_m, color="#1a5276",
+                    penwidth=2.0, fontcolor="#ffffff"))
+            else:
+                lines.append("    " + dot_node(
+                    ffn_id, f"FFN  L{l}", shape="box",
+                    fillcolor=_INACTIVE, color="#cccccc",
+                    penwidth=0.8, fontcolor="#aaaaaa"))
+
+            # Σα after MLP
+            lines.append("    " + dot_node(
+                sm_id, "\u03a3\u03b1", shape="circle",
+                fillcolor=_SIGMA_BG, color="#444444",
+                penwidth=1.5, fontcolor="#333333",
+                width="0.35", height="0.35", fixedsize="true"))
+
+        lines.append("  }")   # end cluster
+        lines.append("")
+
+        # ── Edges ─────────────────────────────────────────────────────────
+        # Residual skip into Σα_attn
+        lines.append(dot_edge(prev_sum, sa_id, style="dashed",
+                               color="#999999", penwidth=1.0, label="\u03b1"))
+
+        for h in range(n_heads):
+            hid = f"H_{l}_{h}"
+            if active_attn[l] and act_h[h]:
+                lines.append(dot_edge(prev_sum, hid,
+                                       color="#d62728", penwidth=1.8))
+                lines.append(dot_edge(hid, sa_id,
+                                       color="#d62728", penwidth=1.8))
+
+        if not is_attn_only:
+            lines.append(dot_edge(sa_id, sm_id, style="dashed",
+                                   color="#999999", penwidth=1.0, label="\u03b1"))
+            if active_mlp[l]:
+                lines.append(dot_edge(sa_id, ffn_id,
+                                       color="#1f77b4", penwidth=1.8))
+                lines.append(dot_edge(ffn_id, sm_id,
+                                       color="#1f77b4", penwidth=1.8))
+            prev_sum = sm_id
+        else:
+            prev_sum = sa_id
+
+        lines.append("")
+
+    # ── Output ───────────────────────────────────────────────────────────────
+    lines.append(dot_node("OUT", "Logits / Output", shape="box",
+                           fillcolor="#e8e8e8", color="#555555",
+                           penwidth=1.5, fontcolor="#222222"))
+    lines.append(dot_edge(prev_sum, "OUT", penwidth=2.0, color="#333333"))
+    lines.append("")
+    lines.append(f'  // Stats: k={k_edges}  epsilon={epsilon:.5f}'
+                 f'  coverage={mass_coverage:.0%}')
+    lines.append("}")
+
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+
+def process_task(
+    model:         HookedTransformer,
+    text:          str,
+    label:         str,
+    mass_coverage: float,
+    out_stem:      str,
+    head_threshold: float,
+) -> None:
+    n_layers = model.cfg.n_layers
+    n_heads  = model.cfg.n_heads
+    is_ao    = bool(getattr(model.cfg, "attn_only", False))
+    model_name = getattr(model.cfg, "model_name", "unknown")
+
+    tokens = model.to_tokens(text)
+    if tokens.shape[-1] > 512:
+        tokens = tokens[:, -512:]
+    tokens = tokens.to(next(model.parameters()).device)
+
+    print(f"  Computing per-head attribution scores …")
+    head_scores, mlp_scores = compute_per_head_scores(model, tokens)
+
+    # Layer-level active mask via mass-coverage rule
+    attn_layer_scores = head_scores.max(axis=1)   # [n_layers]
+    act_a, act_m, eps, k = select_active_edges_by_mass_coverage(
+        attn_layer_scores, mlp_scores, mass_fraction=mass_coverage,
+    )
+
+    n_act_a = sum(act_a)
+    n_act_m = sum(act_m)
+    print(f"  Layer-level: k={k}  attn={n_act_a}/{n_layers}  "
+          f"mlp={n_act_m}/{n_layers}  ε={eps:.5f}")
+
+    common = dict(
+        model_name=model_name,
+        n_layers=n_layers,
+        n_heads=n_heads,
+        head_scores=head_scores,
+        mlp_scores=mlp_scores,
+        active_attn=act_a,
+        active_mlp=act_m,
+        task_text=text,
+        task_label=label,
+        mass_coverage=mass_coverage,
+        epsilon=eps,
+        k_edges=k,
+        is_attn_only=is_ao,
+        head_threshold=head_threshold,
+    )
+
+    # ── Mermaid ───────────────────────────────────────────────────────────────
+    md_path = Path(f"{out_stem}.md")
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    mermaid_str = build_mermaid(**common)
+    md_path.write_text(
+        f"```mermaid\n{mermaid_str}\n```\n\n"
+        f"<!-- Paste the block above at https://mermaid.live to render -->\n",
+        encoding="utf-8",
+    )
+    print(f"  Mermaid  → {md_path}")
+
+    # ── DOT ───────────────────────────────────────────────────────────────────
+    dot_path = Path(f"{out_stem}.dot")
+    dot_str  = build_dot(**common)
+    dot_path.write_text(dot_str, encoding="utf-8")
+    print(f"  DOT      → {dot_path}")
+
+    # ── SVG via graphviz library ──────────────────────────────────────────────
+    try:
+        import graphviz as gv
+        src = gv.Source(dot_str, format="svg")
+        svg_out = str(Path(f"{out_stem}"))
+        src.render(svg_out, cleanup=True)
+        print(f"  SVG      → {svg_out}.svg")
+    except ImportError:
+        print("  SVG skipped (run: pip install graphviz  +  brew install graphviz)")
+    except Exception as exc:
+        print(f"  SVG failed: {exc}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLI
+# ─────────────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Generate Mermaid.js / Graphviz computational graphs of "
+                    "the active subgraph per task."
+    )
+    parser.add_argument("--model", default="gpt2")
+    parser.add_argument("--tasks", nargs="+", default=[
+        "The cat sat on the mat.",
+        "What is 7 times 8? The answer is",
+        "Alice is the mother of Bob. Bob is the mother of Carol. "
+        "Who is Alice's grandchild? The answer is",
+    ])
+    parser.add_argument("--labels", nargs="+", default=None)
+    parser.add_argument("--mass_coverage", type=float, default=0.90)
+    parser.add_argument("--head_threshold", type=float, default=0.15,
+                        help="Relative threshold for marking a head active "
+                             "within its layer (default 0.15 = top 85%% by score).")
+    parser.add_argument("--device", default="cuda")
+    parser.add_argument("--hf_token", default=None)
+    parser.add_argument("--out", default="graphs/subgraph",
+                        help="Output path stem. Files will be named "
+                             "<stem>_task0.md, <stem>_task0.dot, etc.")
+    args = parser.parse_args()
+
+    tasks  = args.tasks
+    labels = args.labels or [f"Task {i+1}" for i in range(len(tasks))]
+    if len(labels) < len(tasks):
+        labels += [f"Task {i+1}" for i in range(len(labels), len(tasks))]
+
+    print(f"Loading model: {args.model}")
+    model = load_model(args.model, device=args.device, hf_token=args.hf_token)
+    model.eval()
+    print(f"  n_layers={model.cfg.n_layers}  n_heads={model.cfg.n_heads}")
+
+    for i, (text, label) in enumerate(zip(tasks, labels)):
+        print(f"\n[{i+1}/{len(tasks)}] {label!r}")
+        print(f"  Prompt: {text[:80]}{'...' if len(text) > 80 else ''}")
+        stem = f"{args.out}_task{i}"
+        try:
+            process_task(
+                model=model,
+                text=text,
+                label=label,
+                mass_coverage=args.mass_coverage,
+                out_stem=stem,
+                head_threshold=args.head_threshold,
+            )
+        except Exception as exc:
+            print(f"  ERROR: {exc}")
+            import traceback; traceback.print_exc()
+
+    print("\nDone.")
+    print("→ Paste any .md file content at  https://mermaid.live  to view interactively.")
+    print("→ Render .dot manually:  dot -Tsvg file.dot -o file.svg")
+
+
+if __name__ == "__main__":
+    main()
