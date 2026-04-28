@@ -434,7 +434,7 @@ def build_dot(
     lines += [
         'digraph active_subgraph {',
         '  rankdir=TB;',
-        '  splines=curved;',           # allows bypass curves for residual edges
+        '  splines=line;',             # fast layout; curved stalls on large cluster graphs
         '  compound=true;',            # needed for lhead/ltail cluster clipping
         '  nodesep=0.45;',
         '  ranksep=0.60;',
@@ -647,50 +647,43 @@ def build_dot(
 
 def _render_dot(dot_str: str, out_stem: str) -> None:
     """
-    Render DOT source to both SVG and PNG.
-    Strategy:
-      1. Try the 'graphviz' Python package (uses the installed dot binary).
-      2. Fall back to calling dot via subprocess directly.
+    Render DOT source to both SVG and PNG via subprocess with a hard timeout.
+    Avoids the graphviz Python package, which calls dot with no timeout and
+    hangs indefinitely on complex clustered graphs.
     """
     import subprocess, shutil
 
-    dot_bin = shutil.which("dot") or "/usr/local/bin/dot"
-    dot_path = Path(f"{out_stem}.dot")
-
-    # ── graphviz Python package ───────────────────────────────────────────────
-    try:
-        import graphviz as gv
-        for fmt in ("svg", "png"):
-            src = gv.Source(dot_str, format=fmt)
-            rendered = src.render(str(Path(out_stem)), cleanup=(fmt == "png"))
-            # graphviz appends the format extension
-            out = Path(f"{out_stem}.{fmt}")
-            print(f"  {fmt.upper():<5}  → {out}")
-        return
-    except ImportError:
-        pass   # fall through to subprocess
-    except Exception as exc:
-        print(f"  graphviz package render failed ({exc}); trying subprocess …")
-
-    # ── subprocess fallback (dot binary) ─────────────────────────────────────
-    if not Path(dot_bin).exists():
+    dot_bin = shutil.which("dot")
+    if not dot_bin:
+        for candidate in ("/usr/local/bin/dot", "/usr/bin/dot",
+                          "/opt/homebrew/bin/dot"):
+            if Path(candidate).exists():
+                dot_bin = candidate
+                break
+    if not dot_bin:
         print("  PNG/SVG skipped — dot binary not found. "
-              "Run: brew install graphviz && pip install graphviz")
+              "Install: sudo apt install graphviz  OR  brew install graphviz")
         return
+
+    dot_path = Path(f"{out_stem}.dot")
+    _RENDER_TIMEOUT = 30   # seconds per format; increase if you have a very large model
 
     for fmt in ("svg", "png"):
         out = Path(f"{out_stem}.{fmt}")
         try:
             result = subprocess.run(
                 [dot_bin, f"-T{fmt}", str(dot_path), "-o", str(out)],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, timeout=_RENDER_TIMEOUT,
             )
             if result.returncode == 0:
                 print(f"  {fmt.upper():<5}  → {out}")
             else:
-                print(f"  {fmt.upper()} failed: {result.stderr.strip()[:120]}")
+                print(f"  {fmt.upper()} failed: {result.stderr.strip()[:200]}")
+        except subprocess.TimeoutExpired:
+            print(f"  {fmt.upper()} skipped — dot layout timed out "
+                  f"(>{_RENDER_TIMEOUT}s). .dot and .md files are still valid.")
         except Exception as exc:
-            print(f"  {fmt.upper()} subprocess error: {exc}")
+            print(f"  {fmt.upper()} error: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
