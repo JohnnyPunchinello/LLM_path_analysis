@@ -186,6 +186,13 @@ def compute_per_head_scores(
     if target_token_idx is None:
         target_token_idx = int(logits_det[0, target_pos].argmax())
 
+    # ── KEY FIX: freeze model parameters before backward ──────────────────────
+    # Without this, .backward() computes gradients for ALL model weights
+    # (345M+ params on CPU for gpt2-medium), making each task take many minutes.
+    # We only need gradients w.r.t. the anchor activation, not the weights.
+    for p in model.parameters():
+        p.requires_grad_(False)
+
     head_act_store: dict = {}
     mlp_act_store:  dict = {}
     fwd_hooks = []
@@ -196,16 +203,14 @@ def compute_per_head_scores(
 
     for l in range(n_layers):
         def _z(act, hook, ll=l):
-            if act.requires_grad:
-                act.retain_grad()
+            act.retain_grad()
             head_act_store[ll] = act
             return act
         fwd_hooks.append((f"blocks.{l}.attn.hook_z", _z))
 
         if not is_ao:
             def _mlp(act, hook, ll=l):
-                if act.requires_grad:
-                    act.retain_grad()
+                act.retain_grad()
                 mlp_act_store[ll] = act
                 return act
             fwd_hooks.append((f"blocks.{l}.hook_mlp_out", _mlp))
