@@ -421,13 +421,18 @@ def build_dot(
     ms_max = mlp_scores.max()  if mlp_scores.max()  > 0 else 1.0
     wrapped = textwrap.shorten(task_text, width=60, placeholder=" ...")
 
+    # Residual stream colour (teal-green, distinct from red attn & blue MLP)
+    _RESID_COL  = "#17a589"   # active residual connection
+    _RESID_NODE = "#a9cce3"   # stream checkpoint node fill
+
     lines: List[str] = []
     lines += [
         'digraph active_subgraph {',
         '  rankdir=TB;',
-        '  splines=polyline;',
-        '  nodesep=0.40;',
-        '  ranksep=0.55;',
+        '  splines=curved;',           # allows bypass curves for residual edges
+        '  compound=true;',            # needed for lhead/ltail cluster clipping
+        '  nodesep=0.45;',
+        '  ranksep=0.60;',
         '  bgcolor="#ffffff";',
         '  dpi=180;',
         f'  label="{task_label} | {model_name} | '
@@ -437,6 +442,23 @@ def build_dot(
         '  // Global node defaults',
         '  node [fontname="Helvetica", fontsize=9];',
         '  edge [fontname="Helvetica", fontsize=8];',
+        '',
+        '  // ── Legend (bottom-right) ──────────────────────────────────────',
+        '  subgraph cluster_legend {',
+        '    label="Legend"; style=solid; color="#cccccc"; bgcolor="#fefefe";',
+        '    fontsize=8; fontname="Helvetica";',
+        '    LEG_A  [label="Attn head (active)", shape=ellipse,'
+        '            fillcolor="#d62728", style=filled, fontcolor=white, fontsize=7];',
+        '    LEG_AI [label="Attn head (inactive)", shape=ellipse,'
+        '            fillcolor="#f4f4f4", style=filled, fontcolor="#aaa", fontsize=7];',
+        '    LEG_F  [label="FFN (active)", shape=box,'
+        '            fillcolor="#1f77b4", style=filled, fontcolor=white, fontsize=7];',
+        '    LEG_FI [label="FFN (inactive)", shape=box,'
+        '            fillcolor="#f4f4f4", style=filled, fontcolor="#aaa", fontsize=7];',
+        '    LEG_R  [label="Residual stream \\ncheckpoint", shape=diamond,'
+        f'            fillcolor="{_RESID_NODE}", style=filled, fontcolor="#1a5276", fontsize=7];',
+        '    { rank=same; LEG_A; LEG_AI; LEG_F; LEG_FI; LEG_R; }',
+        '  }',
         '',
     ]
 
@@ -459,13 +481,32 @@ def build_dot(
         attrs += [f'{k}="{v}"' for k, v in kw.items()]
         return f'  {src} -> {dst} [{", ".join(attrs)}];'
 
-    # ── Input ────────────────────────────────────────────────────────────────
+    def residual_stream_node(nid: str, l_label: str) -> str:
+        """Diamond node representing a residual stream checkpoint."""
+        return dot_node(nid, l_label, shape="diamond",
+                        fillcolor=_RESID_NODE, color="#1a5276",
+                        penwidth=1.8, fontcolor="#1a5276",
+                        width="0.45", height="0.45", fixedsize="true")
+
+    # ── Residual stream checkpoints (OUTSIDE clusters) ────────────────────────
+    # One diamond per layer boundary: RS_0 = before L0, RS_l = between L(l-1) and Ll
+    # These form the visible green backbone.
+    stream_ids = []
+    for l in range(n_layers + 1):
+        rs = f"RS_{l}"
+        stream_ids.append(rs)
+        lbl = "in" if l == 0 else ("out" if l == n_layers else f"r{l}")
+        lines.append(residual_stream_node(rs, lbl))
+    lines.append("")
+
+    # Embed feeds the first stream node
     lines.append(dot_node("EMBED", "Embedding", shape="box",
                            fillcolor="#e8e8e8", color="#555555",
                            penwidth=1.5, fontcolor="#222222"))
+    lines.append(dot_edge("EMBED", "RS_0",
+                           color=_RESID_COL, penwidth=3.0,
+                           arrowhead="normal"))
     lines.append("")
-
-    prev_sum = "EMBED"
 
     for l in range(n_layers):
         act_h  = _active_heads(head_scores, l, head_threshold)
@@ -473,17 +514,20 @@ def build_dot(
         sa_id  = f"SA_{l}"
         sm_id  = f"SM_{l}"
         ffn_id = f"FFN_{l}"
+        rs_in  = f"RS_{l}"       # stream checkpoint entering this layer
+        rs_out = f"RS_{l+1}"     # stream checkpoint leaving this layer
 
         sg_label = (f"Layer {l}  |  {n_ah}/{n_heads} heads"
-                    + ("  FFN ✓" if active_mlp[l] else "  FFN ✗")
-                    if not is_attn_only else f"Layer {l}  |  {n_ah}/{n_heads} heads")
+                    + ("  FFN \u2713" if active_mlp[l] else "  FFN \u2717")
+                    if not is_attn_only
+                    else f"Layer {l}  |  {n_ah}/{n_heads} heads")
 
         lines.append(f'  subgraph cluster_L{l} {{')
         lines.append(f'    label="{sg_label}"; style=dashed; '
                      f'color="#888888"; bgcolor="#fafafa"; '
                      f'fontsize=9; fontname="Helvetica-Oblique";')
 
-        # ── Head nodes (arranged in a rank) ──────────────────────────────
+        # ── Head nodes ───────────────────────────────────────────────────
         lines.append(f'    {{ rank=same;')
         for h in range(n_heads):
             hid = f"H_{l}_{h}"
@@ -502,13 +546,12 @@ def build_dot(
 
         # Σα after attention
         lines.append("    " + dot_node(
-            sa_id, "\u03a3\u03b1", shape="circle",
+            sa_id, "\u03a3", shape="circle",
             fillcolor=_SIGMA_BG, color="#444444",
             penwidth=1.5, fontcolor="#333333",
             width="0.35", height="0.35", fixedsize="true"))
 
         if not is_attn_only:
-            # FFN node
             m_norm = float(mlp_scores[l]) / ms_max
             if active_mlp[l]:
                 fc_m = _mlp_colour(m_norm)
@@ -522,9 +565,8 @@ def build_dot(
                     fillcolor=_INACTIVE, color="#cccccc",
                     penwidth=0.8, fontcolor="#aaaaaa"))
 
-            # Σα after MLP
             lines.append("    " + dot_node(
-                sm_id, "\u03a3\u03b1", shape="circle",
+                sm_id, "\u03a3", shape="circle",
                 fillcolor=_SIGMA_BG, color="#444444",
                 penwidth=1.5, fontcolor="#333333",
                 width="0.35", height="0.35", fixedsize="true"))
@@ -532,30 +574,50 @@ def build_dot(
         lines.append("  }")   # end cluster
         lines.append("")
 
-        # ── Edges ─────────────────────────────────────────────────────────
-        # Residual skip into Σα_attn
-        lines.append(dot_edge(prev_sum, sa_id, style="dashed",
-                               color="#999999", penwidth=1.0, label="\u03b1"))
-
+        # ── Compute edges (attn, MLP) ──────────────────────────────────────
         for h in range(n_heads):
             hid = f"H_{l}_{h}"
             if active_attn[l] and act_h[h]:
-                lines.append(dot_edge(prev_sum, hid,
-                                       color="#d62728", penwidth=1.8))
+                lines.append(dot_edge(rs_in, hid,
+                                       color="#d62728", penwidth=1.6,
+                                       weight="2"))
                 lines.append(dot_edge(hid, sa_id,
-                                       color="#d62728", penwidth=1.8))
+                                       color="#d62728", penwidth=1.6,
+                                       weight="2"))
 
         if not is_attn_only:
-            lines.append(dot_edge(sa_id, sm_id, style="dashed",
-                                   color="#999999", penwidth=1.0, label="\u03b1"))
             if active_mlp[l]:
                 lines.append(dot_edge(sa_id, ffn_id,
-                                       color="#1f77b4", penwidth=1.8))
+                                       color="#1f77b4", penwidth=1.8,
+                                       weight="2"))
                 lines.append(dot_edge(ffn_id, sm_id,
-                                       color="#1f77b4", penwidth=1.8))
-            prev_sum = sm_id
+                                       color="#1f77b4", penwidth=1.8,
+                                       weight="2"))
+
+        # ── Residual connections (teal, curved, constraint=false) ──────────
+        # These bypass the cluster boxes as clearly visible teal arcs.
+        # Skip around attention: RS_in ──teal──> Σ_attn
+        lines.append(dot_edge(rs_in, sa_id,
+                               style="bold", color=_RESID_COL,
+                               penwidth=3.5, label="\u03b1",
+                               constraint=False, weight="0",
+                               arrowhead="open"))
+
+        if not is_attn_only:
+            # Skip around MLP: Σ_attn ──teal──> Σ_mlp
+            lines.append(dot_edge(sa_id, sm_id,
+                                   style="bold", color=_RESID_COL,
+                                   penwidth=3.5, label="\u03b1",
+                                   constraint=False, weight="0",
+                                   arrowhead="open"))
+            # Backbone: Σ_mlp ──teal──> RS_out (next checkpoint)
+            lines.append(dot_edge(sm_id, rs_out,
+                                   color=_RESID_COL, penwidth=3.0,
+                                   weight="10", arrowhead="normal"))
         else:
-            prev_sum = sa_id
+            lines.append(dot_edge(sa_id, rs_out,
+                                   color=_RESID_COL, penwidth=3.0,
+                                   weight="10", arrowhead="normal"))
 
         lines.append("")
 
@@ -563,7 +625,9 @@ def build_dot(
     lines.append(dot_node("OUT", "Logits / Output", shape="box",
                            fillcolor="#e8e8e8", color="#555555",
                            penwidth=1.5, fontcolor="#222222"))
-    lines.append(dot_edge(prev_sum, "OUT", penwidth=2.0, color="#333333"))
+    lines.append(dot_edge(f"RS_{n_layers}", "OUT",
+                           penwidth=3.0, color=_RESID_COL,
+                           arrowhead="normal"))
     lines.append("")
     lines.append(f'  // Stats: k={k_edges}  epsilon={epsilon:.5f}'
                  f'  coverage={mass_coverage:.0%}')
