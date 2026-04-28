@@ -425,10 +425,11 @@ def build_dot(
     lines += [
         'digraph active_subgraph {',
         '  rankdir=TB;',
-        '  splines=ortho;',
-        '  nodesep=0.35;',
-        '  ranksep=0.45;',
+        '  splines=polyline;',
+        '  nodesep=0.40;',
+        '  ranksep=0.55;',
         '  bgcolor="#ffffff";',
+        '  dpi=180;',
         f'  label="{task_label} | {model_name} | '
         f'coverage={mass_coverage:.0%}  k={k_edges}\\n\\"{wrapped}\\"";',
         '  labelloc=t; fontsize=11; fontname="Helvetica";',
@@ -572,6 +573,193 @@ def build_dot(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Rendering helper (SVG + PNG)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _render_dot(dot_str: str, out_stem: str) -> None:
+    """
+    Render DOT source to both SVG and PNG.
+    Strategy:
+      1. Try the 'graphviz' Python package (uses the installed dot binary).
+      2. Fall back to calling dot via subprocess directly.
+    """
+    import subprocess, shutil
+
+    dot_bin = shutil.which("dot") or "/usr/local/bin/dot"
+    dot_path = Path(f"{out_stem}.dot")
+
+    # ── graphviz Python package ───────────────────────────────────────────────
+    try:
+        import graphviz as gv
+        for fmt in ("svg", "png"):
+            src = gv.Source(dot_str, format=fmt)
+            rendered = src.render(str(Path(out_stem)), cleanup=(fmt == "png"))
+            # graphviz appends the format extension
+            out = Path(f"{out_stem}.{fmt}")
+            print(f"  {fmt.upper():<5}  → {out}")
+        return
+    except ImportError:
+        pass   # fall through to subprocess
+    except Exception as exc:
+        print(f"  graphviz package render failed ({exc}); trying subprocess …")
+
+    # ── subprocess fallback (dot binary) ─────────────────────────────────────
+    if not Path(dot_bin).exists():
+        print("  PNG/SVG skipped — dot binary not found. "
+              "Run: brew install graphviz && pip install graphviz")
+        return
+
+    for fmt in ("svg", "png"):
+        out = Path(f"{out_stem}.{fmt}")
+        try:
+            result = subprocess.run(
+                [dot_bin, f"-T{fmt}", str(dot_path), "-o", str(out)],
+                capture_output=True, text=True, timeout=60,
+            )
+            if result.returncode == 0:
+                print(f"  {fmt.upper():<5}  → {out}")
+            else:
+                print(f"  {fmt.upper()} failed: {result.stderr.strip()[:120]}")
+        except Exception as exc:
+            print(f"  {fmt.upper()} subprocess error: {exc}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Task suites
+# ─────────────────────────────────────────────────────────────────────────────
+
+TASK_SUITES: dict = {
+    "quick": {
+        "tasks": [
+            "The cat sat on the mat.",
+            "What is 7 times 8? The answer is",
+            "Alice is the mother of Bob. Bob is the mother of Carol. "
+            "Who is Alice's grandchild? The answer is",
+        ],
+        "labels": ["Simple sentence", "Arithmetic", "2-hop reasoning"],
+    },
+
+    "complexity_gradient": {
+        "tasks": [
+            # Lexical / surface
+            "The dog barked loudly.",
+            # Syntactic
+            "The keys to the cabinet are on the table. The keys",
+            # Single-hop factual
+            "The capital of France is",
+            # Arithmetic
+            "17 plus 28 equals",
+            # 2-hop compositional
+            "Alice is the mother of Bob. Bob is the mother of Carol. "
+            "Alice's grandchild is",
+            # 3-hop compositional
+            "Alice is the parent of Bob. Bob is the parent of Carol. "
+            "Carol is the parent of Dana. Alice's great-grandchild is",
+            # Logical syllogism
+            "All mammals breathe air. Dolphins are mammals. "
+            "Therefore, dolphins",
+            # Analogy
+            "Paris is to France as Berlin is to",
+        ],
+        "labels": [
+            "Lexical",
+            "Subject-verb agreement",
+            "1-hop factual",
+            "Arithmetic",
+            "2-hop reasoning",
+            "3-hop reasoning",
+            "Logical syllogism",
+            "Analogy",
+        ],
+    },
+
+    "syntax": {
+        "tasks": [
+            "The cat sat on the mat.",
+            "The keys to the cabinet are on the table. The keys",
+            "The man who the dogs chased ran. The man",
+            "She said that he believed that they would come. They",
+            "Either the manager or the employees are responsible. They",
+        ],
+        "labels": [
+            "Simple SVO",
+            "Prepositional phrase attractor",
+            "Relative clause (object-extracted)",
+            "Long-range agreement (embedded clause)",
+            "Either-or agreement",
+        ],
+    },
+
+    "arithmetic": {
+        "tasks": [
+            "2 + 2 =",
+            "17 + 28 =",
+            "7 times 8 equals",
+            "144 divided by 12 equals",
+            "What is 15% of 200? The answer is",
+            "If a train travels at 60 mph for 2.5 hours, it covers",
+        ],
+        "labels": [
+            "Trivial addition",
+            "2-digit addition",
+            "Multiplication (single digit)",
+            "Division",
+            "Percentage",
+            "Word problem",
+        ],
+    },
+
+    "reasoning": {
+        "tasks": [
+            # 1-hop
+            "Alice is the mother of Bob. Alice's child is",
+            # 2-hop
+            "Alice is the mother of Bob. Bob is the mother of Carol. "
+            "Alice's grandchild is",
+            # 3-hop
+            "Alice is the parent of Bob. Bob is the parent of Carol. "
+            "Carol is the parent of Dana. Alice's great-grandchild is",
+            # Logical deduction
+            "All birds have wings. A penguin is a bird. Therefore, a penguin has",
+            # Negation + logic
+            "No reptiles are warm-blooded. All mammals are warm-blooded. "
+            "Therefore, snakes are",
+            # Counterfactual
+            "In a world where cats bark and dogs meow, if you hear barking "
+            "outside you think it is a",
+        ],
+        "labels": [
+            "1-hop chain",
+            "2-hop chain",
+            "3-hop chain",
+            "Categorical syllogism",
+            "Negation + deduction",
+            "Counterfactual",
+        ],
+    },
+
+    "world_knowledge": {
+        "tasks": [
+            "The capital of Japan is",
+            "Shakespeare wrote the play Hamlet. The author of Hamlet is",
+            "Water is made of hydrogen and",
+            "The theory of relativity was developed by",
+            "In 1969, Neil Armstrong became the first person to walk on the",
+            "The largest planet in the solar system is",
+        ],
+        "labels": [
+            "Capital city",
+            "Author recall",
+            "Chemical composition",
+            "Scientific attribution",
+            "Historical event",
+            "Astronomy fact",
+        ],
+    },
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -641,17 +829,8 @@ def process_task(
     dot_path.write_text(dot_str, encoding="utf-8")
     print(f"  DOT      → {dot_path}")
 
-    # ── SVG via graphviz library ──────────────────────────────────────────────
-    try:
-        import graphviz as gv
-        src = gv.Source(dot_str, format="svg")
-        svg_out = str(Path(f"{out_stem}"))
-        src.render(svg_out, cleanup=True)
-        print(f"  SVG      → {svg_out}.svg")
-    except ImportError:
-        print("  SVG skipped (run: pip install graphviz  +  brew install graphviz)")
-    except Exception as exc:
-        print(f"  SVG failed: {exc}")
+    # ── SVG + PNG rendering ───────────────────────────────────────────────────
+    _render_dot(dot_str, out_stem)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -659,59 +838,118 @@ def process_task(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    suite_names = ", ".join(TASK_SUITES.keys())
     parser = argparse.ArgumentParser(
-        description="Generate Mermaid.js / Graphviz computational graphs of "
-                    "the active subgraph per task."
+        description="Generate Mermaid.js / Graphviz / PNG computational graphs "
+                    "of the active subgraph per task.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"Built-in suites: {suite_names}",
     )
-    parser.add_argument("--model", default="gpt2")
-    parser.add_argument("--tasks", nargs="+", default=[
-        "The cat sat on the mat.",
-        "What is 7 times 8? The answer is",
-        "Alice is the mother of Bob. Bob is the mother of Carol. "
-        "Who is Alice's grandchild? The answer is",
-    ])
+    # ── Model(s) ──────────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--model", default="gpt2",
+        help="Single model (used when --models is not set).",
+    )
+    parser.add_argument(
+        "--models", nargs="+", default=None,
+        help="Run across multiple models. Output dirs are named per model. "
+             "Example: --models gpt2 gpt2-medium EleutherAI/pythia-160m",
+    )
+    # ── Task(s) ───────────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--suite", default=None,
+        choices=list(TASK_SUITES.keys()),
+        help=f"Named task suite. Options: {suite_names}",
+    )
+    parser.add_argument(
+        "--tasks", nargs="+", default=None,
+        help="Custom task prompts (overrides --suite).",
+    )
     parser.add_argument("--labels", nargs="+", default=None)
+    # ── Options ───────────────────────────────────────────────────────────────
     parser.add_argument("--mass_coverage", type=float, default=0.90)
-    parser.add_argument("--head_threshold", type=float, default=0.15,
-                        help="Relative threshold for marking a head active "
-                             "within its layer (default 0.15 = top 85%% by score).")
+    parser.add_argument(
+        "--head_threshold", type=float, default=0.15,
+        help="Head active if score ≥ head_threshold × max-score in its layer.",
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--hf_token", default=None)
-    parser.add_argument("--out", default="graphs/subgraph",
-                        help="Output path stem. Files will be named "
-                             "<stem>_task0.md, <stem>_task0.dot, etc.")
+    parser.add_argument(
+        "--out", default="graphs/subgraph",
+        help="Output path stem. With multiple models the model name is appended.",
+    )
     args = parser.parse_args()
 
-    tasks  = args.tasks
-    labels = args.labels or [f"Task {i+1}" for i in range(len(tasks))]
+    # ── Resolve task list ─────────────────────────────────────────────────────
+    if args.tasks:
+        tasks  = args.tasks
+        labels = args.labels or [f"Task {i+1}" for i in range(len(tasks))]
+    elif args.suite:
+        suite  = TASK_SUITES[args.suite]
+        tasks  = suite["tasks"]
+        labels = args.labels or suite["labels"]
+    else:
+        suite  = TASK_SUITES["quick"]
+        tasks  = suite["tasks"]
+        labels = suite["labels"]
+
     if len(labels) < len(tasks):
         labels += [f"Task {i+1}" for i in range(len(labels), len(tasks))]
 
-    print(f"Loading model: {args.model}")
-    model = load_model(args.model, device=args.device, hf_token=args.hf_token)
-    model.eval()
-    print(f"  n_layers={model.cfg.n_layers}  n_heads={model.cfg.n_heads}")
+    # ── Resolve model list ────────────────────────────────────────────────────
+    model_names = args.models if args.models else [args.model]
 
-    for i, (text, label) in enumerate(zip(tasks, labels)):
-        print(f"\n[{i+1}/{len(tasks)}] {label!r}")
-        print(f"  Prompt: {text[:80]}{'...' if len(text) > 80 else ''}")
-        stem = f"{args.out}_task{i}"
+    for model_name in model_names:
+        safe = model_name.replace("/", "_").replace("-", "_")
+        print(f"\n{'='*60}")
+        print(f"Model: {model_name}")
+        print(f"{'='*60}")
+
         try:
-            process_task(
-                model=model,
-                text=text,
-                label=label,
-                mass_coverage=args.mass_coverage,
-                out_stem=stem,
-                head_threshold=args.head_threshold,
-            )
+            model = load_model(model_name, device=args.device,
+                               hf_token=args.hf_token)
+            model.eval()
         except Exception as exc:
-            print(f"  ERROR: {exc}")
-            import traceback; traceback.print_exc()
+            print(f"  FAILED to load: {exc}")
+            continue
 
-    print("\nDone.")
-    print("→ Paste any .md file content at  https://mermaid.live  to view interactively.")
-    print("→ Render .dot manually:  dot -Tsvg file.dot -o file.svg")
+        n_lay = model.cfg.n_layers
+        n_hd  = model.cfg.n_heads
+        arch  = ("parallel" if getattr(model.cfg, "parallel_attn_mlp", False)
+                 else "attn-only" if getattr(model.cfg, "attn_only", False)
+                 else "sequential")
+        print(f"  n_layers={n_lay}  n_heads={n_hd}  arch={arch}")
+
+        out_base = (f"{args.out}_{safe}"
+                    if len(model_names) > 1 else args.out)
+
+        for i, (text, label) in enumerate(zip(tasks, labels)):
+            print(f"\n  [{i+1}/{len(tasks)}] {label!r}")
+            print(f"    {text[:80]}{'...' if len(text) > 80 else ''}")
+            stem = f"{out_base}_task{i}"
+            try:
+                process_task(
+                    model=model,
+                    text=text,
+                    label=label,
+                    mass_coverage=args.mass_coverage,
+                    out_stem=stem,
+                    head_threshold=args.head_threshold,
+                )
+            except Exception as exc:
+                print(f"  ERROR: {exc}")
+                import traceback; traceback.print_exc()
+
+        # free GPU memory between models
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    print("\n" + "="*60)
+    print("Done.")
+    print("→ View .md files at  https://mermaid.live")
+    print("→ Open .png files directly in any image viewer")
+    print("→ Manual render:  dot -Tpng file.dot -o file.png")
 
 
 if __name__ == "__main__":
