@@ -31,10 +31,11 @@ Modern transformers are residual networks: at every layer, information can eithe
 ```
 path_analyzer.py              — Core PathAnalyzer class (DAG, Algorithm 1, AtP, entropy)
                                 + select_active_edges_by_mass_coverage() (nucleus rule)
+active_subgraph_viz.py        — Active subgraph visualiser: see WHICH blocks fire per task
 experiment_runner.py          — Synergy-gap sweep across models × tasks; CSV + plots
 synergy_gap_experiment.py     — Focused synergy-gap experiment with model-group presets
 token_path_heatmap.py         — Per-token E[L] heatmap and time-series visualization
-skip_profile_experiment.py    — Skip profile analysis: WHERE does compute happen? (new)
+skip_profile_experiment.py    — Skip profile analysis: WHERE does compute happen?
 test_path_dp.py               — 48 unit tests for the DP path counter and mass-coverage rule
 ```
 
@@ -67,6 +68,74 @@ emp, info = analyzer.empirical_path_distribution(tokens)
 print(f"Empirical  H = {emp.entropy:.3f} bits  active_attn = {info['n_active_attn']}")
 print(f"Synergy Gap  = {ana.entropy - emp.entropy:.3f} bits")
 ```
+
+---
+
+## Quickest Start — Active Subgraph Visualiser
+
+> **If you want to see what the network is doing with one command, start here.**
+
+`active_subgraph_viz.py` draws the active computation subgraph for a list of task prompts side-by-side. No CSV, no aggregate statistics — just a picture of which blocks fire and how they chain together.
+
+### What you see
+
+```
+     [A0] [A1] [A2]  ...  [A_{L-1}]      ← attention blocks (above backbone)
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━●   ← residual stream backbone
+     [M0] [M1] [M2]  ...  [M_{L-1}]      ← MLP blocks (below backbone)
+```
+
+| Visual element | Meaning |
+|---|---|
+| **Orange/red box** (bold border) | Active attention block; colour intensity = attribution score |
+| **Blue box** (bold border) | Active MLP block; colour intensity = attribution score |
+| **Grey box** (faint border) | Inactive block (below mass-coverage threshold) |
+| **Bold black backbone** | Active residual (skip) connection — both flanking stream nodes active |
+| **Dashed grey backbone** | Inactive residual connection |
+| **Diagonal lines** through a box | Active compute arc: stream → block → stream |
+
+Active blocks are selected by the **nucleus (mass-coverage) rule**: the minimum number of edges whose combined attribution mass covers ≥ 90% of the total. Simpler tokens recruit fewer blocks; complex reasoning tokens recruit more.
+
+### Usage
+
+```bash
+# GPT-2 on CPU — runs in ~30 seconds
+python active_subgraph_viz.py \
+    --model gpt2 \
+    --device cpu \
+    --tasks "The cat sat on the mat." \
+            "What is 7 times 8? The answer is" \
+            "Alice is the mother of Bob. Bob is the mother of Carol. Who is Alice's grandchild?" \
+    --task_labels "Simple sentence" "Arithmetic" "2-hop reasoning" \
+    --mass_coverage 0.9 \
+    --out subgraphs.png
+
+# Llama-3-8B on GPU with 4-bit quantisation (~5 GB VRAM)
+python active_subgraph_viz.py \
+    --model NousResearch/Meta-Llama-3-8B \
+    --device cuda \
+    --tasks "The cat sat on the mat." \
+            "Prove that the square root of 2 is irrational." \
+    --task_labels "Simple" "Hard math" \
+    --mass_coverage 0.9 \
+    --out llama_subgraphs.png
+
+# Sparse view — fewer active blocks, structural differences become obvious
+python active_subgraph_viz.py --model gpt2 --device cpu --mass_coverage 0.5
+```
+
+### CLI options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--model` | `gpt2` | Any TransformerLens-compatible model name |
+| `--tasks` | 4 built-in examples | Space-separated list of prompt strings |
+| `--task_labels` | `Task 1, 2, …` | Short panel label per task |
+| `--mass_coverage` | `0.9` | Nucleus coverage target (lower → sparser graph) |
+| `--device` | `cuda` | Falls back to `cpu` automatically |
+| `--hf_token` | `None` | HuggingFace token for gated repos |
+| `--out` | `active_subgraphs.png` | Output path (`.png`, `.pdf`, `.svg`) |
+| `--dpi` | `150` | Output resolution |
 
 ---
 
