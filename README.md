@@ -66,14 +66,13 @@ Each task produces three output files:
 ## Files
 
 ```
-active_subgraph_dot.py   — Computational graph generator → PNG, SVG, Mermaid.js, DOT
-active_subgraph_viz.py   — Quick matplotlib grid visualiser (no install required)
-path_analyzer.py         — Core: DAG, Algorithm 1, AtP scoring, mass-coverage selection
-experiment_runner.py     — Synergy-gap sweep across models × tasks  → CSV + plots
-synergy_gap_experiment.py — Focused synergy-gap experiment with model-group presets
-token_path_heatmap.py    — Per-token E[L] heatmap and time-series visualisation
-skip_profile_experiment.py — WHERE does compute happen? (layer CoM, early/mid/late)
-test_path_dp.py          — 48 unit tests for the DP path counter and mass-coverage rule
+active_subgraph_dot.py    — Computational graph generator → PNG, Mermaid.js, DOT
+active_subgraph_viz.py    — Quick matplotlib grid visualiser (no Graphviz needed)
+skip_profile_analysis.py  — Cross-model × cross-task skip profiler → CSV + plots
+path_analyzer.py          — Core: DAG, Algorithm 1, AtP scoring, mass-coverage selection
+experiment_runner.py      — Synergy-gap sweep across models × tasks → CSV + plots
+token_path_heatmap.py     — Per-token E[L] heatmap and time-series visualisation
+test_path_dp.py           — Unit tests for the DP path counter and mass-coverage rule
 ```
 
 ---
@@ -163,6 +162,96 @@ Any model loadable by [TransformerLens](https://github.com/neelnanda-io/Transfor
 | 4 | `The theory of relativity was developed by` | Scientific attribution |
 | 5 | `In 1969, Neil Armstrong became the first person to walk on the` | Historical event |
 | 6 | `The largest planet in the solar system is` | Astronomy fact |
+
+### `deep_chains` — 6 tasks, k-hop chains 1→6
+Tests how far the compute horizon retreats as chain depth increases.
+| # | Prompt | Label |
+|---|---|---|
+| 1 | `Alice is the mother of Bob. Alice's child is` | 1-hop chain |
+| 2 | `Alice is the mother of Bob. Bob is the mother of Carol. Alice's grandchild is` | 2-hop chain |
+| 3 | `Alice → Bob → Carol → Dana. Alice's great-grandchild is` | 3-hop chain |
+| 4 | `Alice → Bob → Carol → Dana → Eve. Alice's great-great-grandchild is` | 4-hop chain |
+| 5 | `A → B → C → D → E → F. A's great-great-great-grandchild is` | 5-hop chain |
+| 6 | `A → B → C → D → E → F → G. A's descendant six generations down is` | 6-hop chain |
+
+### `surface` — 6 tasks, trivially predictable completions (baseline)
+Minimal-processing baseline. Should produce sparse, front-loaded active subgraphs.
+| # | Prompt | Label |
+|---|---|---|
+| 1 | `The sky is` | Sky color (trivial) |
+| 2 | `Water boils at one hundred degrees` | Boiling point (trivial) |
+| 3 | `One two three four` | Number sequence |
+| 4 | `The dog barked at the` | Dog sentence (surface) |
+| 5 | `Hello, my name` | Greeting (surface) |
+| 6 | `The cat sat on the` | Cat sentence (surface) |
+
+### `mixed` — 10 tasks, one per capability type (broad survey)
+One representative task per capability category for fast cross-type comparison.
+| # | Label | Capability |
+|---|---|---|
+| 1 | Surface | Lexical |
+| 2 | Factual recall | World knowledge |
+| 3 | Trivial arithmetic | Numeric |
+| 4 | 1-hop chain | Compositional k=1 |
+| 5 | 2-hop chain | Compositional k=2 |
+| 6 | 3-hop chain | Compositional k=3 |
+| 7 | Categorical syllogism | Deductive |
+| 8 | Negation + deduction | Negation |
+| 9 | Counterfactual | Counterfactual |
+| 10 | Analogy | Relational |
+
+---
+
+## Skip Profile Analysis — `skip_profile_analysis.py`
+
+Runs multiple models × task suites and extracts quantitative metrics from each active subgraph. Produces a CSV and four plots.
+
+```bash
+# Reasoning + deep chains across three models
+python skip_profile_analysis.py \
+    --models gpt2 gpt2-medium EleutherAI/pythia-160m \
+    --suites reasoning deep_chains \
+    --device cuda --out results/skip
+
+# Full broad survey
+python skip_profile_analysis.py \
+    --models gpt2 gpt2-medium gpt2-large \
+             EleutherAI/pythia-70m EleutherAI/pythia-160m EleutherAI/pythia-410m \
+    --suites mixed surface deep_chains reasoning \
+    --device cuda --out results/skip_broad
+```
+
+**Output files**
+
+| File | Contents |
+|---|---|
+| `<out>.csv` | One row per (model, suite, task) with all metrics |
+| `<out>_summary.txt` | Pivot tables: k / horizon / fragmentation / late-attn |
+| `<out>_heatmap.png` | FFN-active heatmap (rows=tasks, cols=normalised depth) |
+| `<out>_horizon.png` | Compute horizon % per task, grouped bars per model |
+| `<out>_scatter.png` | Fragmentation vs late-attn scatter (colour = task type) |
+| `<out>_lines.png` | Compute horizon vs hop-count lines (deep_chains only) |
+
+**Metrics**
+
+| Metric | Meaning |
+|---|---|
+| `k` | Active edges at 90% nucleus coverage |
+| `compute_horizon_pct` | Normalised depth of last active FFN block [0–1] |
+| `skip_com_pct` | Centre-of-mass of FFN-skip layers, normalised [0–1] |
+| `fragmentation` | Number of contiguous FFN-skip islands (1 = clean tail, 3 = multi-stage) |
+| `tail_skip_pct` | Where the terminal skip zone begins, normalised [0–1] |
+| `late_attn_frac` | Mean head-fraction active in last 3 layers (0 = chain-like, ~1 = logic-like) |
+| `attn_cutoff_pct` | Normalised depth where attention permanently falls silent |
+
+**Key findings from GPT-2 / GPT-2-medium / Pythia-160m on `reasoning` + `deep_chains`**
+
+1. **Compute horizon retreats one layer per hop (GPT-2).** The last active FFN moves from 75% depth (1-hop) to 58% (2-hop) to 50% (3-hop). Harder chains don't go deeper — the model runs out of capacity and residual stream carries through.
+2. **L11 attention in GPT-2 is a logic-type detector.** Chain tasks → 0/12 heads at L11. Syllogism/Negation/Counterfactual → 9–11/12 heads at L11. Clean binary split.
+3. **Fragmentation distinguishes task structure.** Chains produce a single contiguous tail-skip (F=1). Syllogism produces 3 separate skip islands (F=3) — indicating multi-stage processing.
+4. **Negation+deduction has the same skip profile as 2-hop chain** in GPT-2, suggesting the model routes "No X are Y / All Z are Y / therefore..." through the same 2-premise lookup circuit.
+5. **Pythia-160m is task-invariant.** All tasks produce k≈17–18 with attention dying at L7–L8 and FFN continuing to L11. No task-specialized routing.
+6. **k scales with depth, not parameters.** GPT-2 (12L) max k≈20; GPT-2-medium (24L) max k≈40. Ratio ≈ 2× matches depth ratio, not parameter ratio (~3×).
 
 ---
 

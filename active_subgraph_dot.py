@@ -818,6 +818,86 @@ TASK_SUITES: dict = {
             "Astronomy fact",
         ],
     },
+
+    # Extends k-hop chains to depth 6 — tests how far the compute horizon retreats
+    "deep_chains": {
+        "tasks": [
+            "Alice is the mother of Bob. Alice's child is",
+            "Alice is the mother of Bob. Bob is the mother of Carol. "
+            "Alice's grandchild is",
+            "Alice is the parent of Bob. Bob is the parent of Carol. "
+            "Carol is the parent of Dana. Alice's great-grandchild is",
+            "Alice is the parent of Bob. Bob is the parent of Carol. "
+            "Carol is the parent of Dana. Dana is the parent of Eve. "
+            "Alice's great-great-grandchild is",
+            "A is the parent of B. B is the parent of C. C is the parent of D. "
+            "D is the parent of E. E is the parent of F. "
+            "A's great-great-great-grandchild is",
+            "A is the parent of B. B is the parent of C. C is the parent of D. "
+            "D is the parent of E. E is the parent of F. F is the parent of G. "
+            "A's descendant six generations down is",
+        ],
+        "labels": [
+            "1-hop chain",
+            "2-hop chain",
+            "3-hop chain",
+            "4-hop chain",
+            "5-hop chain",
+            "6-hop chain",
+        ],
+    },
+
+    # Minimal-processing baseline — trivially predictable next tokens
+    "surface": {
+        "tasks": [
+            "The sky is",
+            "Water boils at one hundred degrees",
+            "One two three four",
+            "The dog barked at the",
+            "Hello, my name",
+            "The cat sat on the",
+        ],
+        "labels": [
+            "Sky color (trivial)",
+            "Boiling point (trivial)",
+            "Number sequence",
+            "Dog sentence (surface)",
+            "Greeting (surface)",
+            "Cat sentence (surface)",
+        ],
+    },
+
+    # One representative task per capability type — broad cross-type survey
+    "mixed": {
+        "tasks": [
+            "The dog barked loudly.",
+            "The capital of France is",
+            "2 + 2 =",
+            "Alice is the mother of Bob. Alice's child is",
+            "Alice is the mother of Bob. Bob is the mother of Carol. "
+            "Alice's grandchild is",
+            "Alice is the parent of Bob. Bob is the parent of Carol. "
+            "Carol is the parent of Dana. Alice's great-grandchild is",
+            "All birds have wings. A penguin is a bird. Therefore, a penguin has",
+            "No reptiles are warm-blooded. All mammals are warm-blooded. "
+            "Therefore, snakes are",
+            "In a world where cats bark and dogs meow, if you hear barking "
+            "outside you think it is a",
+            "Paris is to France as Berlin is to",
+        ],
+        "labels": [
+            "Surface",
+            "Factual recall",
+            "Trivial arithmetic",
+            "1-hop chain",
+            "2-hop chain",
+            "3-hop chain",
+            "Categorical syllogism",
+            "Negation + deduction",
+            "Counterfactual",
+            "Analogy",
+        ],
+    },
 }
 
 
