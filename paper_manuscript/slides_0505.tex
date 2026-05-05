@@ -1,0 +1,421 @@
+% ============================================================
+%  Active Subgraph Skip Profiles — Research Group Slides
+%  Data source: graphs_0505  (generated 2025-05-05)
+%  Models: GPT-2 (12L$\times$12H)  |  GPT-2-medium (24L$\times$16H)
+%  Compile:  pdflatex slides_0505.tex
+% ============================================================
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+
+% ── Custom palette (matches the visualisation colour scheme) ──────────────
+\definecolor{teal}   {RGB}{23,165,137}   % residual/skip arcs
+\definecolor{attnred}{RGB}{214, 39, 40}  % active attention head
+\definecolor{mlpblue}{RGB}{ 31,119,180}  % active FFN block
+\definecolor{darkgray}{RGB}{80,80,80}
+\definecolor{lightbg} {RGB}{245,245,245}
+
+\setbeamercolor{frametitle}{bg=teal,fg=white}
+\setbeamercolor{title}{bg=teal!90!black,fg=white}
+\setbeamercolor{structure}{fg=teal}
+\setbeamercolor{block title}{bg=teal!20,fg=teal!80!black}
+\setbeamercolor{block body}{bg=lightbg}
+\setbeamercolor{alerted text}{fg=attnred}
+
+% ── Packages ──────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage{pifont}
+\newcommand{\cmark}{\ding{51}}
+\newcommand{\xmark}{\ding{55}}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{colortbl}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+
+% convenience: active / inactive cell macros
+\newcommand{\yes}[1]{\textcolor{teal}{\textbf{#1}}}
+\newcommand{\no}[1] {\textcolor{gray}{#1}}
+\newcommand{\hi}[1] {\textcolor{attnred}{\textbf{#1}}}
+
+% ── Title metadata ────────────────────────────────────────────────────────
+\title[Skip Profiles in GPT-2 Family]{Active Subgraph Skip Profiles:\\
+       Layer-level Computation Routing in GPT-2 Family Models}
+\subtitle{graphs\_0505 analysis — reasoning suite}
+\author{LLM Path Analysis Project}
+\date{May 2025}
+
+% ─────────────────────────────────────────────────────────────────────────
+\begin{document}
+% ─────────────────────────────────────────────────────────────────────────
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{frame}
+\titlepage
+\end{frame}
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{frame}{Slide 1 — Experiment Setup}
+
+\begin{columns}[T]
+
+%% LEFT ─ models & tasks
+\begin{column}{0.46\textwidth}
+\begin{block}{Models}
+\footnotesize
+\begin{tabular}{llcc}
+\toprule
+Model & Layers & Heads & Params \\
+\midrule
+\texttt{gpt2}        & 12 & 12 & 117M \\
+\texttt{gpt2-medium} & 24 & 16 & 345M \\
+\bottomrule
+\end{tabular}\\[4pt]
+Both run on CPU, \texttt{eval()} mode.
+\end{block}
+
+\vspace{4pt}
+\begin{block}{Task suite: \texttt{reasoning} (6 tasks)}
+\footnotesize
+\begin{tabular}{ll}
+\toprule
+Label & Prompt (truncated) \\
+\midrule
+1-hop chain  & \emph{Alice is the mother of Bob. Alice's child is} \\
+2-hop chain  & \emph{Alice $\to$ Bob $\to$ Carol. Alice's grandchild is} \\
+3-hop chain  & \emph{Alice $\to$ Bob $\to$ Carol $\to$ Dana. \dots grandchild is} \\
+Cat.\ syllogism & \emph{All birds have wings. Penguins are birds. So\dots} \\
+Negation+ded.  & \emph{No reptiles are warm-blooded. All mammals\dots} \\
+Counterfactual & \emph{In a world where cats bark\dots barking is a} \\
+\bottomrule
+\end{tabular}
+\end{block}
+\end{column}
+
+%% RIGHT ─ methodology
+\begin{column}{0.50\textwidth}
+\begin{block}{Active/inactive criterion (new)}
+\footnotesize
+Each block (attention or FFN) is classified by its\\
+\textbf{output-to-input magnitude ratio}:
+\[
+r_{\text{attn}}^{(l)} = \frac{\|\mathtt{attn\_out}^{(l)}\|_2}{\|\mathtt{resid\_pre}^{(l)}\|_2},
+\quad
+r_{\text{ffn}}^{(l)} = \frac{\|\mathtt{mlp\_out}^{(l)}\|_2}{\|\mathtt{resid\_mid}^{(l)}\|_2}
+\]
+\textbf{Inactive} (skip-dominant): $r < 0.05$ \quad
+\textcolor{teal}{$\boldsymbol{\Rightarrow}$ thick teal U-arc}\\
+\textbf{Active} (block transforms): $r \geq 0.05$ \quad
+\textcolor{gray}{$\Rightarrow$ thin dashed arc}
+\end{block}
+
+\vspace{4pt}
+\begin{block}{Attribution scoring (AtP)}
+\footnotesize
+Per-head score at \texttt{hook\_z}:
+\[
+s(l,h) = \textstyle\text{mean}_{t,d}\,|\,\nabla_z \log p \odot z\,|
+\]
+Nucleus coverage $\rho=0.90$: keep fewest edges\\
+covering 90\% of total attribution mass.\\
+Model params frozen (\texttt{requires\_grad\_(False)})\\
+before backward to avoid $O(P)$ gradient cost.
+\end{block}
+\end{column}
+
+\end{columns}
+\end{frame}
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{frame}{Slide 2 — Finding 1: Opposing First-Layer Strategies}
+
+\begin{columns}[T]
+
+\begin{column}{0.48\textwidth}
+\begin{block}{\textcolor{attnred}{GPT-2} — attention-dominant entry}
+\footnotesize
+\begin{tabular}{ccccc}
+\toprule
+Layer & \multicolumn{2}{c}{Attn ratio $r$} & \multicolumn{2}{c}{FFN ratio $r$} \\
+      & status & value & status & value \\
+\midrule
+L0 & \yes{\cmark{}} & \hi{5.2–5.9} & \yes{\cmark{}} & \hi{1.2–1.8} \\
+L1 & \yes{\cmark{}} & 0.17         & \yes{\cmark{}} & 0.43–0.71 \\
+L2 & \yes{\cmark{}} & 0.08–0.11    & \yes{\cmark{}} & 1.12–1.84 \\
+L3 & varies  & 0.03–0.07    & \yes{\cmark{}} & 0.11–0.13 \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{L0 attention $r \approx 5.5$}: attn output is\\
+$5\times$ the stream magnitude — heads dominate\\
+the very first transformation.\\[4pt]
+L2 FFN is a secondary spike ($r \approx 1.5$), the\\
+first ``feature extraction'' checkpoint.
+\end{block}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{block}{\textcolor{mlpblue}{GPT-2-medium} — FFN-dominant entry}
+\footnotesize
+\begin{tabular}{ccccc}
+\toprule
+Layer & \multicolumn{2}{c}{Attn ratio $r$} & \multicolumn{2}{c}{FFN ratio $r$} \\
+      & status & value & status & value \\
+\midrule
+L0 & \yes{\cmark{}} & 0.34–0.36    & \yes{\cmark{}} & \hi{36–38} \\
+L1 & \yes{\cmark{}} & 0.14–0.16    & \yes{\cmark{}} & 0.19–0.21 \\
+L2 & \yes{\cmark{}} & 0.11–0.15    & \yes{\cmark{}} & 0.19–0.28 \\
+L3 & \yes{\cmark{}} & 0.06–0.07    & \yes{\cmark{}} & 0.86–1.71 \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{L0 FFN $r \approx 37$}: FFN output is\\
+$37\times$ the stream magnitude — the first feed-\\
+forward layer essentially rewrites the token.\\[4pt]
+Attention at L0 is present ($r\approx0.35$) but\\
+plays a minor role compared to the FFN.
+\end{block}
+\end{column}
+
+\end{columns}
+
+\vspace{6pt}
+\begin{alertblock}{Interpretation}
+\footnotesize
+Both models always activate L0, but which \emph{sub-block} dominates differs entirely.
+GPT-2 is \textbf{attention-first}; GPT-2-medium is \textbf{FFN-first}.
+This suggests the two training runs converge on different strategies for converting token embeddings into
+distributional representations — a difference invisible to loss curves but visible in magnitude profiles.
+\end{alertblock}
+
+\end{frame}
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{frame}{Slide 3 — Finding 2: Attention Silence Zones and the Bilateral Dead Zone}
+
+\begin{columns}[T]
+
+\begin{column}{0.52\textwidth}
+\begin{block}{Attention-silent layers per task}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcc}
+\toprule
+Task & GPT-2 attn $\times$ layers & GPT-2-med attn $\times$ layers \\
+\midrule
+1-hop chain  & \no{L3–L9 (7 layers)} & \no{L4–L20 (17 layers)} \\
+2-hop chain  & \no{L3–L4 (2 layers)} & \no{L4–L16 (13 layers)} \\
+3-hop chain  & \yes{none}            & \yes{none} \\
+Syllogism    & \no{L3–L7 (5 layers)} & \no{L4–L14 (11 layers)} \\
+Negation     & \no{L3–L4, L6}        & \no{L4–L16 (13 layers)} \\
+Counterfactual & \no{L4 only}        & \no{L4–L14, L16, L20} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{GPT-2}: FFN is \emph{never} inactive ($r \geq 0.07$ always).\\
+Middle silence = attention off, FFN-only highway.\\[4pt]
+\textbf{GPT-2-medium, 1-hop}: L7–L13 show \textbf{both}\\
+attn \emph{and} FFN inactive simultaneously ($r < 0.05$).\\
+The residual stream coasts 7 layers \textbf{untouched}.
+\end{block}
+\end{column}
+
+\begin{column}{0.44\textwidth}
+\begin{block}{3-hop chain: no silence}
+\footnotesize
+The 3-hop chain is the \emph{only} task in GPT-2-medium\\
+where every layer shows attn \yes{\cmark{}}.\\[6pt]
+This is \textbf{counter-intuitive}: the hardest chain task\\
+uses the \emph{most} layers, while the easiest (1-hop)\\
+uses the fewest — concentrating computation\\
+into $\approx$6 active layers then coasting.
+\end{block}
+
+\vspace{4pt}
+\begin{block}{Silence length scales with task}
+\footnotesize
+As chain depth increases, the attention-silent zone\\
+\textbf{shrinks}: the model recruits progressively more\\
+middle-layer attention heads to resolve each\\
+additional relational hop.\\[6pt]
+$\rightarrow$ Silence length is a proxy for\\
+\quad task complexity in chain reasoning.
+\end{block}
+
+\vspace{4pt}
+\begin{alertblock}{\footnotesize Key contrast with prior view}
+\footnotesize
+The "later layers refine" hypothesis predicts complex\\
+tasks use \emph{more} late-layer processing.\\
+Here: complex chains wake \emph{earlier} and keep\\
+\emph{more} layers active throughout — not just at the end.
+\end{alertblock}
+\end{column}
+
+\end{columns}
+\end{frame}
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{frame}{Slide 4 — Finding 3 \& 4: Early Spike Decay + Universal Output Integrator}
+
+\begin{columns}[T]
+
+%% LEFT
+\begin{column}{0.50\textwidth}
+\begin{block}{Finding 3 — Early FFN spike \emph{decreases} with task complexity}
+\footnotesize
+The early prominent FFN layer decays monotonically\\
+as chain depth increases:
+
+\medskip
+\begin{tabular}{lcc}
+\toprule
+Task & GPT-2 L2 FFN $r$ & GPT-2-med L3 FFN $r$ \\
+\midrule
+1-hop     & \hi{1.84} & \hi{1.71} \\
+2-hop     & 1.41      & 1.15 \\
+3-hop     & 1.12      & 0.86 \\
+Syllogism & 1.43      & 1.15 \\
+Negation  & 1.42      & 1.13 \\
+Counterfactual & 1.34 & 1.05 \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Simple tasks front-load more energy into the early\\
+FFN (acting as a one-shot lookup).
+Complex tasks distribute this budget across layers.\\[4pt]
+Logic tasks (syllogism, negation) cluster near the\\
+2-hop level — consistent with 2-premise retrieval.
+\end{block}
+\end{column}
+
+%% RIGHT
+\begin{column}{0.46\textwidth}
+\begin{block}{Finding 4 — Universal output integrator}
+\footnotesize
+The \emph{final} attention layer fires strongly for\\
+\textbf{every task} in both models:
+
+\medskip
+\begin{tabular}{lcc}
+\toprule
+Task & GPT-2 L11 & GPT-2-med L23 \\
+     & attn $r$  & attn $r$ \\
+\midrule
+1-hop     & 0.89 & 0.39 \\
+2-hop     & 0.96 & 0.41 \\
+3-hop     & \hi{0.99} & \hi{0.42} \\
+Syllogism & 0.90 & 0.38 \\
+Negation  & 0.86 & 0.41 \\
+Counterfactual & 0.93 & 0.38 \\
+\bottomrule
+\end{tabular}
+
+\medskip
+GPT-2 L11: always \yes{\cmark{}}, ratio \textbf{increases} with\\
+hop depth ($0.89 \to 0.99$).\\[4pt]
+GPT-2-medium L23: always \yes{\cmark{}}, lower absolute\\
+ratio because stream magnitude has grown over\\
+24 layers. GPT-2-medium L22 FFN also\\
+shows a consistent ``pre-final'' spike ($r \approx 0.30$).\\[4pt]
+$\Rightarrow$ Both models learn a \textbf{dedicated last-layer}\\
+\textbf{attention integrator}, task-invariant but\\
+calibrated to chain depth.
+\end{block}
+\end{column}
+
+\end{columns}
+\end{frame}
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{frame}{Slide 5 — Cross-task Clustering and Summary}
+
+\begin{columns}[T]
+
+\begin{column}{0.46\textwidth}
+\begin{block}{Task clustering by silence signature (GPT-2-medium)}
+\footnotesize
+\begin{tabular}{ll}
+\toprule
+Cluster & Tasks \\
+\midrule
+\textbf{Deep silence} (wake $\geq$ L21) & 1-hop chain \\
+\textbf{Long silence} (wake L17)         & 2-hop chain, \hi{negation+ded.} \\
+\textbf{Medium silence} (wake L15)       & Syllogism, \hi{counterfactual} \\
+\textbf{No silence}                      & 3-hop chain (unique) \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{Negation+deduction groups with 2-hop},\\
+not with the other logic tasks.\\
+Supports the hypothesis that the model routes\\
+``No X / All Y / therefore\dots'' through the\\
+same 2-premise lookup circuit as a 2-hop chain.\\[6pt]
+\textbf{Counterfactual} is the least chain-like logic\\
+task — its silence is shortest among logic tasks,\\
+suggesting additional world-model access.
+\end{block}
+\end{column}
+
+\begin{column}{0.50\textwidth}
+\begin{block}{Summary of findings}
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{p{3.2cm}p{4.0cm}}
+\toprule
+Finding & Implication \\
+\midrule
+L0: attn-dominant (GPT-2) vs.\ FFN-dominant (GPT-2-med) &
+Different tokenisation strategies; not visible from loss \\
+\midrule
+Attention-silent zones shrink with hop depth &
+Silence length $\approx$ task complexity proxy \\
+\midrule
+GPT-2-med 1-hop: bilateral dead zone L7–L13 &
+Residual stream coasts 7 layers untouched \\
+\midrule
+Early FFN spike $\downarrow$ as hop depth $\uparrow$ &
+Complex tasks distribute, not concentrate, budget \\
+\midrule
+Final-layer attn $r$ scales with hop depth &
+Universal output integrator, strength $\propto$ complexity \\
+\midrule
+Negation clusters with 2-hop & Two-premise circuit reuse \\
+\bottomrule
+\end{tabular}
+\end{block}
+
+\vspace{4pt}
+\begin{block}{Open questions}
+\footnotesize
+\begin{itemize}
+  \item Does the bilateral dead zone persist for $>$3-hop chains in GPT-2-medium?
+  \item Is the L0 attn/FFN dominance flip consistent across the full Pythia family?
+  \item Can interventional patching \emph{into} the silent zone change task routing?
+  \item Do larger models (GPT-2-large, GPT-2-XL) continue the early-FFN-spike-decay trend?
+\end{itemize}
+\end{block}
+\end{column}
+
+\end{columns}
+
+\vspace{4pt}
+\begin{block}{\footnotesize Code \& data}
+\footnotesize
+\texttt{active\_subgraph\_dot.py} \quad
+\texttt{--models gpt2 gpt2-medium --suite reasoning --mag\_threshold 0.05 --out graphs\_0505/compare}\\
+Results: \texttt{graphs\_0505/compare\_\{gpt2,gpt2\_medium\}\_task\{0..5\}.\{md,dot,png,svg\}}
+\end{block}
+
+\end{frame}
+
+% ─────────────────────────────────────────────────────────────────────────
+\end{document}
