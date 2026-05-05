@@ -33,8 +33,10 @@
 \usepackage{colortbl}
 \usepackage{xcolor}
 \usepackage{array}
+\usepackage{graphicx}
+\graphicspath{{../graphs_0505/}}   % PNG files live one level up
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta}
+\usetikzlibrary{positioning,arrows.meta,calc}
 
 % convenience: active / inactive cell macros
 \newcommand{\yes}[1]{\textcolor{teal}{\textbf{#1}}}
@@ -415,6 +417,182 @@ Negation clusters with 2-hop & Two-premise circuit reuse \\
 Results: \texttt{graphs\_0505/compare\_\{gpt2,gpt2\_medium\}\_task\{0..5\}.\{md,dot,png,svg\}}
 \end{block}
 
+\end{frame}
+
+% ══════════════════════════════════════════════════════════════════════════
+%  Image slides — actual active subgraph outputs from graphs_0505
+% ══════════════════════════════════════════════════════════════════════════
+
+% ── Image slide 1: GPT-2 3-hop chain ─────────────────────────────────────
+% Chosen because it has the best aspect ratio for slides (tall + narrow).
+% Key feature: NO attention silence — every layer fires, unlike 1-hop.
+\begin{frame}[plain]
+\begin{tikzpicture}[remember picture, overlay]
+
+  % Teal header bar
+  \fill[teal] (current page.north west) rectangle
+              ([yshift=-0.9cm]current page.north east);
+  \node[anchor=west, text=white, font=\bfseries\footnotesize]
+        at ([xshift=0.4cm, yshift=-0.45cm]current page.north west)
+        {GPT-2 (12L$\times$12H) \quad 3-hop Chain \quad $k=18$ \quad
+         \texttt{compare\_gpt2\_task2.png}};
+
+  % ── Image (left column, full height) ─────────────────────────────────
+  \node[anchor=north west] (img)
+        at ([xshift=0.2cm,yshift=-1.0cm]current page.north west) {%
+    \includegraphics[height=0.86\paperheight,
+                     keepaspectratio]{compare_gpt2_task2.png}%
+  };
+
+  % ── Annotation panel (right of image) ────────────────────────────────
+  \node[anchor=north west, text width=7.4cm,
+        font=\footnotesize, align=left]
+        at ([xshift=3.0cm,yshift=-1.1cm]current page.north west) {
+
+    \textcolor{teal}{\textbf{What to look at}}
+
+    \medskip
+    \textbf{Skip arc colour} (left U-shape beside each layer):
+    \begin{itemize}\setlength\itemsep{2pt}
+      \item \textcolor{teal}{\textbf{Thick teal}} = block INACTIVE ($r<0.05$);\\
+            skip is the dominant path
+      \item \textcolor{gray}{Thin dashed} = block ACTIVE ($r\geq0.05$);\\
+            block transforms the stream
+    \end{itemize}
+
+    \medskip
+    \textbf{This task: all attention layers \cmark{}}\\
+    Compare to 1-hop chain where L3--L9 have\\
+    thick teal U-arcs (attn silent for 7 layers).
+
+    \medskip
+    \textbf{L11 final attention}: $r=0.99$ — the highest\\
+    observed across all tasks.  The last-layer\\
+    integrator works \emph{harder} for deeper chains.
+
+    \medskip
+    \textbf{L2 FFN spike}: $r=1.12$ — still above stream\\
+    magnitude, but lower than 1-hop ($r=1.84$).\\
+    Early FFN pre-processing budget shrinks\\
+    as the task distributes computation deeper.
+  };
+
+\end{tikzpicture}
+\end{frame}
+
+
+% ── Image slide 2: GPT-2 Counterfactual ──────────────────────────────────
+% Roughly square aspect ratio — shows the logic-type routing pattern.
+% Key feature: L4 is the only silent-attn layer; L11 attn r=0.93.
+\begin{frame}[plain]
+\begin{tikzpicture}[remember picture, overlay]
+
+  \fill[attnred] (current page.north west) rectangle
+                 ([yshift=-0.9cm]current page.north east);
+  \node[anchor=west, text=white, font=\bfseries\footnotesize]
+        at ([xshift=0.4cm, yshift=-0.45cm]current page.north west)
+        {GPT-2 (12L$\times$12H) \quad Counterfactual \quad $k=20$ \quad
+         \texttt{compare\_gpt2\_task5.png}};
+
+  \node[anchor=north west] (img)
+        at ([xshift=0.2cm,yshift=-1.0cm]current page.north west) {%
+    \includegraphics[height=0.86\paperheight,
+                     keepaspectratio]{compare_gpt2_task5.png}%
+  };
+
+  \node[anchor=north west, text width=6.8cm,
+        font=\footnotesize, align=left]
+        at ([xshift=5.5cm,yshift=-1.1cm]current page.north west) {
+
+    \textcolor{attnred}{\textbf{Counterfactual task}}\\
+    \emph{``In a world where cats bark and dogs meow,\\
+    if you hear barking outside you think it is a''}
+
+    \medskip
+    \textbf{Silence: only L4 ($r=0.05$, borderline)}\\
+    Almost every attention layer fires — this task\\
+    requires the most distributed reasoning of\\
+    the 6 tasks tested in GPT-2.
+
+    \medskip
+    \textbf{L10 FFN: $r=0.30$} — notably high compared\\
+    to chain tasks ($r\approx 0.20$--$0.24$).\\
+    The FFN gradient from L3 upward is steeper,\\
+    suggesting more sustained semantic refinement.
+
+    \medskip
+    \textbf{Clusters with: syllogism} (both wake at L4/L5).\\
+    Contrast: 1-hop chain wakes attention at L10;\\
+    counterfactual has attention alive throughout.
+
+    \medskip
+    \textbf{k=20} (maximum for GPT-2, same as syllogism\\
+    and negation) — attribution spread across the\\
+    full active subgraph, not concentrated.
+  };
+
+\end{tikzpicture}
+\end{frame}
+
+
+% ── Image slide 3: GPT-2-medium 3-hop chain ──────────────────────────────
+% Portrait aspect ratio — the only GPT-2-medium graph with no silence zone.
+% Key feature: bilateral dead zone in 1-hop is ABSENT here.
+\begin{frame}[plain]
+\begin{tikzpicture}[remember picture, overlay]
+
+  \fill[mlpblue] (current page.north west) rectangle
+                 ([yshift=-0.9cm]current page.north east);
+  \node[anchor=west, text=white, font=\bfseries\footnotesize]
+        at ([xshift=0.4cm, yshift=-0.45cm]current page.north west)
+        {GPT-2-medium (24L$\times$16H) \quad 3-hop Chain \quad $k=36$ \quad
+         \texttt{compare\_gpt2\_medium\_task2.png}};
+
+  \node[anchor=north west] (img)
+        at ([xshift=0.2cm,yshift=-1.0cm]current page.north west) {%
+    \includegraphics[height=0.86\paperheight,
+                     keepaspectratio]{compare_gpt2_medium_task2.png}%
+  };
+
+  \node[anchor=north west, text width=7.5cm,
+        font=\footnotesize, align=left]
+        at ([xshift=4.2cm,yshift=-1.1cm]current page.north west) {
+
+    \textcolor{mlpblue}{\textbf{The anomalous task in GPT-2-medium}}
+
+    \medskip
+    \textbf{Every layer shows attn \cmark{}}\\
+    All other 5 tasks have long silence zones\\
+    (up to 17 consecutive attn-inactive layers).\\
+    The 3-hop chain is categorically different.
+
+    \medskip
+    \textbf{Compare with 1-hop (not shown):}
+    \begin{itemize}\setlength\itemsep{1pt}
+      \item 1-hop: attn silent L4--L20; \emph{both} attn\\
+            and FFN silent at L7--L13
+      \item 3-hop: \textbf{zero silence} anywhere
+    \end{itemize}
+
+    \medskip
+    \textbf{L0 FFN: $r=36.3$} (same huge spike as other\\
+    tasks — the L0 FFN rewrites the token regardless\\
+    of task type).
+
+    \medskip
+    \textbf{L23 attn: $r=0.42$} — universal output integrator\\
+    active across all GPT-2-medium tasks.\\[3pt]
+    \textbf{L22 FFN: $r=0.29$} — pre-final FFN spike,\\
+    consistent across all tasks.
+
+    \medskip
+    \textbf{Open question}: Is the activation of all 24\\
+    attention layers a sign of capacity saturation\\
+    (model cannot solve 3-hop without every layer)?\\
+    Or is it a qualitatively different circuit?
+  };
+
+\end{tikzpicture}
 \end{frame}
 
 % ─────────────────────────────────────────────────────────────────────────
