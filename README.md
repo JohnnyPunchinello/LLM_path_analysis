@@ -39,27 +39,41 @@ Each task produces three output files:
 
 ```
          [Embedding]
-              │  (teal = residual stream)
-         ◇ r0 ◇ ──────────────────── residual stream checkpoint
-        /α╲   \── H0 ──┐
-       /   ╲   \── H1 ──┤
-      /     ╲  ...      ├──> (Σ) ──── α ──> (Σ)
-              \── H11 ──┘    attn-add      mlp-add
-                               │               │
-                            [FFN L0]          ...
+              │  (teal = residual stream backbone)
+         ◇ r0 ◇
               │
-         ◇ r1 ◇  ← next checkpoint
+     ╔══ Layer 0  attn ✗ r=0.03   ffn ✓ r=0.21 ══╗
+     ║  H0  H1  H2 … H11   (Σ)  [FFN L0]  (Σ)    ║
+     ╚═══════════════════════════════════════════╝
+     ┃                                           ┃
+     ┃   ←── thick teal U-arc (block inactive)  ┃  layer 0: attn r=0.03 < threshold
+     ┃           thin grey dashed U-arc          ┃  layer 0: ffn  r=0.21 > threshold
+              │
+         ◇ r1 ◇
 ```
+
+Skip arcs wrap around the **left side** of each layer cluster in a U-shape.
+The arc style encodes whether the transformation block is doing meaningful work:
 
 | Element | Colour / style | Meaning |
 |---|---|---|
 | **◇ diamond node** | Teal fill | Residual stream checkpoint between layers |
-| **Teal bold arrow** | `───α───>` | Active residual (skip) connection |
+| **Thick teal U-arc** | Bold solid `──α r=0.03──>` | **Block inactive** — `‖block_out‖/‖stream_in‖ < threshold`; skip carries the signal |
+| **Thin grey dashed U-arc** | Dashed `- -α r=0.40- ->` | **Block active** — block transforms significantly; skip is secondary |
 | **Red/orange ellipse** | Bold border | Active attention head; darker = higher attribution score |
-| **Grey ellipse** | Faint border | Inactive attention head (below coverage threshold) |
-| **Blue rectangle** | Bold border | Active FFN / MLP block |
-| **Grey rectangle** | Faint border | Inactive FFN block |
+| **Grey ellipse** | Faint border | Inactive attention head (below layer threshold) |
+| **Blue rectangle** | Bold border | Active FFN / MLP block; shows ratio `r=0.21` |
+| **Grey rectangle** | Faint border | Inactive FFN block; shows ratio `r=0.03` |
 | **(Σ)** | White circle | Residual addition node (attention add or MLP add) |
+
+The ratio label (`r=0.03`) printed on each block and arc is:
+
+```
+ratio_attn[l] = ‖attn_out[l]‖₂  /  ‖resid_pre[l]‖₂
+ratio_mlp[l]  = ‖mlp_out[l]‖₂   /  ‖resid_mid[l]‖₂
+```
+
+Typical active layers: 0.10 – 0.50.  Inactive (skip-dominant) layers: < 0.05.
 
 ---
 
@@ -268,8 +282,9 @@ python active_subgraph_dot.py [options]
 | `--suite` | `quick` | Named task suite (see above) |
 | `--tasks` | — | Custom prompts, overrides `--suite` |
 | `--labels` | auto | Short label per task |
-| `--mass_coverage` | `0.9` | Nucleus coverage target: the minimum edges covering 90% of attribution mass are kept active |
-| `--head_threshold` | `0.15` | Head active if score ≥ threshold × max-score in its layer |
+| `--mass_coverage` | `0.9` | Nucleus coverage target: minimum edges covering 90% of attribution mass |
+| `--head_threshold` | `0.15` | Head active if attribution score ≥ threshold × max-score in its layer |
+| `--mag_threshold` | `0.05` | Block active/inactive cutoff: block is **inactive** (skip-dominant) when `‖block_out‖/‖stream_in‖ < mag_threshold`; shown as thick teal U-arc |
 | `--device` | `cuda` | Falls back to `cpu` automatically |
 | `--hf_token` | — | HuggingFace token for gated repos (or set `HF_TOKEN` env var) |
 | `--out` | `graphs/subgraph` | Output path stem; model name appended when `--models` is used |
@@ -364,6 +379,24 @@ s(l, h) = mean_{seq, d_head} | ∂logit/∂z[l,h] · z[l,h] |
 ```
 
 Anchored at `blocks.0.hook_resid_pre` (detached float32 leaf) to avoid propagating through quantised embeddings.
+
+### Magnitude-ratio criterion — block active vs inactive
+
+Separately from attribution, each block is classified **active** or **inactive** based on how much it transforms the residual stream relative to its magnitude:
+
+```
+ratio_attn[l] = mean_pos ‖attn_out[l]‖₂  /  mean_pos ‖resid_pre[l]‖₂
+ratio_mlp[l]  = mean_pos ‖mlp_out[l]‖₂   /  mean_pos ‖resid_mid[l]‖₂
+```
+
+where `attn_out` and `mlp_out` are the pre-residual-addition block outputs (hooked at `hook_attn_out` and `hook_mlp_out`), and the norm is averaged over sequence positions.
+
+| Condition | Classification | Skip arc |
+|---|---|---|
+| ratio < `--mag_threshold` (default 0.05) | **Inactive** — skip-dominant | Thick teal U-arc |
+| ratio ≥ `--mag_threshold` | **Active** — block transforms | Thin grey dashed U-arc |
+
+This criterion is independent of the output token: it measures whether a block is actually doing computation on *this particular input*, regardless of whether that computation affects the final prediction.
 
 ### Path entropy and synergy gap
 | Metric | Formula |
