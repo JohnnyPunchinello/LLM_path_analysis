@@ -78,6 +78,16 @@ from path_analyzer import PathAnalyzer, select_active_edges_by_mass_coverage
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Constants
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Default magnitude-ratio threshold.  A block is *inactive* (skip-dominant)
+# when  ||block_output|| / ||stream_input|| < MAG_THRESHOLD.
+# Typical GPT-2 family: active layers ≈ 0.10–0.50, inactive < 0.05.
+MAG_THRESHOLD: float = 0.05
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Colour helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -258,6 +268,88 @@ def _active_heads(head_scores: np.ndarray, layer: int,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Magnitude-ratio scoring  (active / inactive block criterion)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def compute_magnitude_ratios(
+    model: HookedTransformer,
+    tokens: torch.Tensor,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Measure per-layer output-to-input magnitude ratio.
+
+    Criterion: a block is *inactive* (skip-dominant) when its transformation
+    output is negligible compared to the residual stream it adds into:
+
+        ratio_attn[l] = mean_pos ||attn_out[l]||₂  /  mean_pos ||resid_pre[l]||₂
+        ratio_mlp[l]  = mean_pos ||mlp_out[l]||₂   /  mean_pos ||resid_mid[l]||₂
+
+    Both numerator and denominator use the per-token L2 norm averaged over
+    sequence positions (scale-independent, batch-robust).
+
+    Returns
+    -------
+    attn_ratios : float ndarray [n_layers]
+    mlp_ratios  : float ndarray [n_layers]  (zeros for attn-only models)
+    """
+    n_layers = model.cfg.n_layers
+    is_ao    = bool(getattr(model.cfg, "attn_only", False))
+
+    resid_pre_store: dict = {}
+    attn_out_store:  dict = {}
+    resid_mid_store: dict = {}
+    mlp_out_store:   dict = {}
+
+    fwd_hooks = []
+    for l in range(n_layers):
+        def _rp(act, hook, ll=l):
+            resid_pre_store[ll] = act.detach().float()
+            return act
+        fwd_hooks.append((f"blocks.{l}.hook_resid_pre", _rp))
+
+        def _ao(act, hook, ll=l):
+            attn_out_store[ll] = act.detach().float()
+            return act
+        fwd_hooks.append((f"blocks.{l}.hook_attn_out", _ao))
+
+        if not is_ao:
+            def _rm(act, hook, ll=l):
+                resid_mid_store[ll] = act.detach().float()
+                return act
+            fwd_hooks.append((f"blocks.{l}.hook_resid_mid", _rm))
+
+            def _mo(act, hook, ll=l):
+                mlp_out_store[ll] = act.detach().float()
+                return act
+            fwd_hooks.append((f"blocks.{l}.hook_mlp_out", _mo))
+
+    with torch.no_grad():
+        model.run_with_hooks(tokens, fwd_hooks=fwd_hooks, return_type=None)
+
+    attn_ratios = np.zeros(n_layers, dtype=np.float32)
+    mlp_ratios  = np.zeros(n_layers, dtype=np.float32)
+
+    for l in range(n_layers):
+        rp = resid_pre_store.get(l)
+        ao = attn_out_store.get(l)
+        if rp is not None and ao is not None:
+            # mean per-token L2 norm over [batch, seq] → scalar
+            in_n  = rp.norm(dim=-1).mean().item()
+            out_n = ao.norm(dim=-1).mean().item()
+            attn_ratios[l] = out_n / (in_n + 1e-8)
+
+        if not is_ao:
+            rm = resid_mid_store.get(l)
+            mo = mlp_out_store.get(l)
+            if rm is not None and mo is not None:
+                in_n  = rm.norm(dim=-1).mean().item()
+                out_n = mo.norm(dim=-1).mean().item()
+                mlp_ratios[l] = out_n / (in_n + 1e-8)
+
+    return attn_ratios, mlp_ratios
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Mermaid.js generator
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -271,8 +363,10 @@ def build_mermaid(
     n_heads:      int,
     head_scores:  np.ndarray,      # [n_layers, n_heads]
     mlp_scores:   np.ndarray,      # [n_layers]
-    active_attn:  List[bool],      # [n_layers]  layer-level
-    active_mlp:   List[bool],      # [n_layers]
+    active_attn:  List[bool],      # [n_layers] magnitude-based
+    active_mlp:   List[bool],      # [n_layers] magnitude-based
+    attn_ratios:  np.ndarray,      # [n_layers] ||attn_out||/||resid_pre||
+    mlp_ratios:   np.ndarray,      # [n_layers] ||mlp_out||/||resid_mid||
     task_text:    str,
     task_label:   str,
     mass_coverage: float,
@@ -280,6 +374,7 @@ def build_mermaid(
     k_edges:      int,
     is_attn_only: bool = False,
     head_threshold: float = 0.15,
+    mag_threshold:  float = MAG_THRESHOLD,
 ) -> str:
     """Return a Mermaid.js flowchart string."""
 
@@ -329,12 +424,14 @@ def build_mermaid(
         sm_id    = _mermaid_node_id("SM", l)     # Σα after MLP
         ffn_id   = _mermaid_node_id("FFN", l)
 
-        # Layer summary for subgraph label
+        # Layer summary for subgraph label (includes magnitude ratios)
         n_act_h   = sum(act_h) if active_attn[l] else 0
         head_info = f"{n_act_h}/{n_heads} heads" if not is_attn_only else ""
-        mlp_info  = "FFN ✓" if active_mlp[l] else "FFN ✗"
-        sg_label  = (f"Layer {l}  |  Attn: {head_info}  {mlp_info}"
-                     if not is_attn_only else f"Layer {l}  |  {head_info}")
+        a_mark = f"✓ r={attn_ratios[l]:.2f}" if active_attn[l] else f"✗ r={attn_ratios[l]:.2f}"
+        m_mark = f"✓ r={mlp_ratios[l]:.2f}"  if active_mlp[l]  else f"✗ r={mlp_ratios[l]:.2f}"
+        mlp_info  = f"FFN {m_mark}"
+        sg_label  = (f"Layer {l}  |  Attn {a_mark}  {mlp_info}"
+                     if not is_attn_only else f"Layer {l}  |  Attn {a_mark}")
 
         lines.append(f"  subgraph L{l}[\"{sg_label}\"]")
         lines.append(f"    direction TB")
@@ -367,18 +464,24 @@ def build_mermaid(
         lines.append("")
 
         # ── Edges into this layer ─────────────────────────────────────────
-        # Residual skip: prev_sum --dashed--> Σα_attn  (always)
-        lines.append(f"  {prev_sum} -. α .-> {sa_id}")
+        # Skip / residual arc:
+        #   block INACTIVE (ratio ≤ threshold) → thick solid  (skip is dominant)
+        #   block ACTIVE   (ratio >  threshold) → thin dashed  (block transforms)
+        attn_skip = (f"  {prev_sum} -- α r={attn_ratios[l]:.2f} --> {sa_id}"
+                     if active_attn[l]
+                     else f"  {prev_sum} -. α r={attn_ratios[l]:.2f} .-> {sa_id}")
+        lines.append(attn_skip)
 
         for h, hid in enumerate(head_ids):
             if active_attn[l] and act_h[h]:
                 lines.append(f"  {prev_sum} --> {hid}")
                 lines.append(f"  {hid} --> {sa_id}")
-            # inactive heads: draw thin edge to Σα (no arrow through head)
 
         if not is_attn_only:
-            # Residual skip: Σα_attn --dashed--> Σα_mlp
-            lines.append(f"  {sa_id} -. α .-> {sm_id}")
+            mlp_skip = (f"  {sa_id} -- α r={mlp_ratios[l]:.2f} --> {sm_id}"
+                        if active_mlp[l]
+                        else f"  {sa_id} -. α r={mlp_ratios[l]:.2f} .-> {sm_id}")
+            lines.append(mlp_skip)
             if active_mlp[l]:
                 lines.append(f"  {sa_id} --> {ffn_id}")
                 lines.append(f"  {ffn_id} --> {sm_id}")
@@ -410,8 +513,10 @@ def build_dot(
     n_heads:      int,
     head_scores:  np.ndarray,
     mlp_scores:   np.ndarray,
-    active_attn:  List[bool],
+    active_attn:  List[bool],      # magnitude-based: ratio > mag_threshold
     active_mlp:   List[bool],
+    attn_ratios:  np.ndarray,      # [n_layers] ||attn_out||/||resid_pre||
+    mlp_ratios:   np.ndarray,      # [n_layers] ||mlp_out||/||resid_mid||
     task_text:    str,
     task_label:   str,
     mass_coverage: float,
@@ -419,6 +524,7 @@ def build_dot(
     k_edges:      int,
     is_attn_only: bool = False,
     head_threshold: float = 0.15,
+    mag_threshold:  float = MAG_THRESHOLD,
 ) -> str:
     """Return a Graphviz DOT string."""
 
@@ -434,8 +540,7 @@ def build_dot(
     lines += [
         'digraph active_subgraph {',
         '  rankdir=TB;',
-        '  splines=line;',             # fast layout; curved stalls on large cluster graphs
-        '  compound=true;',            # needed for lhead/ltail cluster clipping
+        '  splines=ortho;',            # orthogonal routing → U-shaped skip arcs via :w ports
         '  nodesep=0.45;',
         '  ranksep=0.60;',
         '  bgcolor="#ffffff";',
@@ -460,9 +565,13 @@ def build_dot(
         '            fillcolor="#1f77b4", style=filled, fontcolor=white, fontsize=7];',
         '    LEG_FI [label="FFN (inactive)", shape=box,'
         '            fillcolor="#f4f4f4", style=filled, fontcolor="#aaa", fontsize=7];',
-        '    LEG_R  [label="Residual stream \\ncheckpoint", shape=diamond,'
+        '    LEG_R  [label="Residual stream\\ncheckpoint", shape=diamond,'
         f'            fillcolor="{_RESID_NODE}", style=filled, fontcolor="#1a5276", fontsize=7];',
-        '    { rank=same; LEG_A; LEG_AI; LEG_F; LEG_FI; LEG_R; }',
+        '    LEG_SK [label="Skip arc\\n(block inactive,\\nthick teal)", shape=plaintext,'
+        '            fontsize=7, fontcolor="#17a589"];',
+        '    LEG_SA [label="Skip arc\\n(block active,\\nthin grey dashed)", shape=plaintext,'
+        '            fontsize=7, fontcolor="#999999"];',
+        '    { rank=same; LEG_A; LEG_AI; LEG_F; LEG_FI; LEG_R; LEG_SK; LEG_SA; }',
         '  }',
         '',
     ]
@@ -522,10 +631,11 @@ def build_dot(
         rs_in  = f"RS_{l}"       # stream checkpoint entering this layer
         rs_out = f"RS_{l+1}"     # stream checkpoint leaving this layer
 
-        sg_label = (f"Layer {l}  |  {n_ah}/{n_heads} heads"
-                    + ("  FFN \u2713" if active_mlp[l] else "  FFN \u2717")
+        a_mark = f"\u2713 r={attn_ratios[l]:.2f}" if active_attn[l] else f"\u2717 r={attn_ratios[l]:.2f}"
+        m_mark = f"\u2713 r={mlp_ratios[l]:.2f}"  if active_mlp[l]  else f"\u2717 r={mlp_ratios[l]:.2f}"
+        sg_label = (f"Layer {l}  |  attn {a_mark}   ffn {m_mark}"
                     if not is_attn_only
-                    else f"Layer {l}  |  {n_ah}/{n_heads} heads")
+                    else f"Layer {l}  |  attn {a_mark}")
 
         lines.append(f'  subgraph cluster_L{l} {{')
         lines.append(f'    label="{sg_label}"; style=dashed; '
@@ -558,15 +668,16 @@ def build_dot(
 
         if not is_attn_only:
             m_norm = float(mlp_scores[l]) / ms_max
+            ffn_label = f"FFN  L{l}\\nr={mlp_ratios[l]:.2f}"
             if active_mlp[l]:
                 fc_m = _mlp_colour(m_norm)
                 lines.append("    " + dot_node(
-                    ffn_id, f"FFN  L{l}", shape="box",
+                    ffn_id, ffn_label, shape="box",
                     fillcolor=fc_m, color="#1a5276",
                     penwidth=2.0, fontcolor="#ffffff"))
             else:
                 lines.append("    " + dot_node(
-                    ffn_id, f"FFN  L{l}", shape="box",
+                    ffn_id, ffn_label, shape="box",
                     fillcolor=_INACTIVE, color="#cccccc",
                     penwidth=0.8, fontcolor="#aaaaaa"))
 
@@ -599,23 +710,45 @@ def build_dot(
                                        color="#1f77b4", penwidth=1.8,
                                        weight="2"))
 
-        # ── Residual connections (teal, curved, constraint=false) ──────────
-        # These bypass the cluster boxes as clearly visible teal arcs.
-        # Skip around attention: RS_in ──teal──> Σ_attn
-        lines.append(dot_edge(rs_in, sa_id,
-                               style="bold", color=_RESID_COL,
-                               penwidth=3.5, label="\u03b1",
-                               constraint=False, weight="0",
-                               arrowhead="open"))
-
-        if not is_attn_only:
-            # Skip around MLP: Σ_attn ──teal──> Σ_mlp
-            lines.append(dot_edge(sa_id, sm_id,
-                                   style="bold", color=_RESID_COL,
-                                   penwidth=3.5, label="\u03b1",
+        # ── Residual / skip arcs  ─────────────────────────────────────
+        # U-shape routing via splines=ortho + :w (west) ports.
+        # Graphviz routes:  RS:w → LEFT → DOWN → RIGHT → SA:w
+        # giving a clean U around the LEFT side of each layer cluster.
+        #
+        # Arc style encodes block activity (magnitude-ratio criterion):
+        #   block INACTIVE (ratio ≤ threshold) → thick teal  = skip is dominant
+        #   block ACTIVE   (ratio >  threshold) → thin grey dashed = block transforms
+        if active_attn[l]:
+            lines.append(dot_edge(f"{rs_in}:w", f"{sa_id}:w",
+                                   style="dashed", color="#999999",
+                                   penwidth=1.2,
+                                   label=f"\u03b1 {attn_ratios[l]:.2f}",
                                    constraint=False, weight="0",
                                    arrowhead="open"))
-            # Backbone: Σ_mlp ──teal──> RS_out (next checkpoint)
+        else:
+            lines.append(dot_edge(f"{rs_in}:w", f"{sa_id}:w",
+                                   style="bold", color=_RESID_COL,
+                                   penwidth=3.5,
+                                   label=f"\u03b1 {attn_ratios[l]:.2f}",
+                                   constraint=False, weight="0",
+                                   arrowhead="open"))
+
+        if not is_attn_only:
+            if active_mlp[l]:
+                lines.append(dot_edge(f"{sa_id}:w", f"{sm_id}:w",
+                                       style="dashed", color="#999999",
+                                       penwidth=1.2,
+                                       label=f"\u03b1 {mlp_ratios[l]:.2f}",
+                                       constraint=False, weight="0",
+                                       arrowhead="open"))
+            else:
+                lines.append(dot_edge(f"{sa_id}:w", f"{sm_id}:w",
+                                       style="bold", color=_RESID_COL,
+                                       penwidth=3.5,
+                                       label=f"\u03b1 {mlp_ratios[l]:.2f}",
+                                       constraint=False, weight="0",
+                                       arrowhead="open"))
+            # Backbone: Σ_mlp ──teal──> RS_out
             lines.append(dot_edge(sm_id, rs_out,
                                    color=_RESID_COL, penwidth=3.0,
                                    weight="10", arrowhead="normal"))
@@ -912,6 +1045,7 @@ def process_task(
     mass_coverage: float,
     out_stem:      str,
     head_threshold: float,
+    mag_threshold:  float = MAG_THRESHOLD,
 ) -> None:
     n_layers = model.cfg.n_layers
     n_heads  = model.cfg.n_heads
@@ -926,16 +1060,26 @@ def process_task(
     print(f"  Computing per-head attribution scores …")
     head_scores, mlp_scores = compute_per_head_scores(model, tokens)
 
-    # Layer-level active mask via mass-coverage rule
+    # ── Attribution-based stats (k, ε) — kept for header display only ────────
     attn_layer_scores = head_scores.max(axis=1)   # [n_layers]
-    act_a, act_m, eps, k = select_active_edges_by_mass_coverage(
+    _, _, eps, k = select_active_edges_by_mass_coverage(
         attn_layer_scores, mlp_scores, mass_fraction=mass_coverage,
     )
 
+    # ── Magnitude-ratio criterion for block active / inactive ─────────────────
+    # "An inactive skip block is when ||block_output|| / ||stream_input|| < threshold"
+    print(f"  Computing magnitude ratios (threshold={mag_threshold:.3f}) …")
+    attn_ratios, mlp_ratios = compute_magnitude_ratios(model, tokens)
+    act_a = (attn_ratios > mag_threshold).tolist()
+    act_m = (mlp_ratios  > mag_threshold).tolist()
+
     n_act_a = sum(act_a)
     n_act_m = sum(act_m)
-    print(f"  Layer-level: k={k}  attn={n_act_a}/{n_layers}  "
-          f"mlp={n_act_m}/{n_layers}  ε={eps:.5f}")
+    print(f"  k={k}  attn active={n_act_a}/{n_layers}  "
+          f"mlp active={n_act_m}/{n_layers}  ε={eps:.5f}")
+    print(f"  attn ratios: {' '.join(f'{r:.2f}' for r in attn_ratios)}")
+    if not is_ao:
+        print(f"  mlp  ratios: {' '.join(f'{r:.2f}' for r in mlp_ratios)}")
 
     common = dict(
         model_name=model_name,
@@ -945,6 +1089,8 @@ def process_task(
         mlp_scores=mlp_scores,
         active_attn=act_a,
         active_mlp=act_m,
+        attn_ratios=attn_ratios,
+        mlp_ratios=mlp_ratios,
         task_text=text,
         task_label=label,
         mass_coverage=mass_coverage,
@@ -952,6 +1098,7 @@ def process_task(
         k_edges=k,
         is_attn_only=is_ao,
         head_threshold=head_threshold,
+        mag_threshold=mag_threshold,
     )
 
     # ── Mermaid ───────────────────────────────────────────────────────────────
@@ -1013,6 +1160,14 @@ def main() -> None:
     parser.add_argument(
         "--head_threshold", type=float, default=0.15,
         help="Head active if score ≥ head_threshold × max-score in its layer.",
+    )
+    parser.add_argument(
+        "--mag_threshold", type=float, default=MAG_THRESHOLD,
+        help=(
+            "Block active/inactive threshold (default %(default)s). "
+            "A block is inactive (skip-dominant) when "
+            "||block_output|| / ||stream_input|| < mag_threshold."
+        ),
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--hf_token", default=None)
@@ -1077,6 +1232,7 @@ def main() -> None:
                     mass_coverage=args.mass_coverage,
                     out_stem=stem,
                     head_threshold=args.head_threshold,
+                    mag_threshold=args.mag_threshold,
                 )
             except Exception as exc:
                 print(f"  ERROR: {exc}")
