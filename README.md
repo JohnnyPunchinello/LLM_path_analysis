@@ -70,7 +70,8 @@ The ratio label (`r=0.03`) printed on each block and arc is:
 
 ```
 ratio_attn[l] = ‖attn_out[l]‖₂  /  ‖resid_pre[l]‖₂
-ratio_mlp[l]  = ‖mlp_out[l]‖₂   /  ‖resid_mid[l]‖₂
+ratio_mlp[l]  = ‖mlp_out[l]‖₂   /  ‖resid_mid[l]‖₂   (sequential)
+             or ‖mlp_out[l]‖₂   /  ‖resid_pre[l]‖₂   (parallel / Pythia)
 ```
 
 Typical active layers: 0.10 – 0.50.  Inactive (skip-dominant) layers: < 0.05.
@@ -382,19 +383,29 @@ Anchored at `blocks.0.hook_resid_pre` (detached float32 leaf) to avoid propagati
 
 ### Magnitude-ratio criterion — block active vs inactive
 
-Separately from attribution, each block is classified **active** or **inactive** based on how much it transforms the residual stream relative to its magnitude:
+Separately from attribution, each block is classified **active** or **inactive** based on how much it transforms the residual stream relative to its magnitude.
 
+**Sequential architecture (GPT-2 style):**
 ```
 ratio_attn[l] = mean_pos ‖attn_out[l]‖₂  /  mean_pos ‖resid_pre[l]‖₂
 ratio_mlp[l]  = mean_pos ‖mlp_out[l]‖₂   /  mean_pos ‖resid_mid[l]‖₂
 ```
 
-where `attn_out` and `mlp_out` are the pre-residual-addition block outputs (hooked at `hook_attn_out` and `hook_mlp_out`), and the norm is averaged over sequence positions.
+**Parallel architecture (Pythia / GPT-NeoX, `parallel_attn_mlp=True`):**  
+Attention and MLP both read from `resid_pre` in parallel; `hook_resid_mid` does not exist in these models.  Both ratios use `resid_pre` as denominator:
+```
+ratio_attn[l] = mean_pos ‖attn_out[l]‖₂  /  mean_pos ‖resid_pre[l]‖₂
+ratio_mlp[l]  = mean_pos ‖mlp_out[l]‖₂   /  mean_pos ‖resid_pre[l]‖₂
+```
+
+The architecture is detected automatically via `model.cfg.parallel_attn_mlp`.
 
 | Condition | Classification | Skip arc |
 |---|---|---|
 | ratio < `--mag_threshold` (default 0.05) | **Inactive** — skip-dominant | Thick teal U-arc |
 | ratio ≥ `--mag_threshold` | **Active** — block transforms | Thin grey dashed U-arc |
+
+**When does inactive (thick teal) appear?**  Mixed active/inactive skip arcs are visible for GPT-2 on 1-hop/2-hop tasks, where attention ratios in the middle layers (e.g. L3–L9, `r≈0.03`) fall below the 0.05 threshold. FFN ratios are generally above threshold across all tasks tested. The threshold can be raised (e.g. `--mag_threshold 0.10`) to classify more layers as inactive.
 
 This criterion is independent of the output token: it measures whether a block is actually doing computation on *this particular input*, regardless of whether that computation affects the final prediction.
 

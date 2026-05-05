@@ -281,8 +281,15 @@ def compute_magnitude_ratios(
     Criterion: a block is *inactive* (skip-dominant) when its transformation
     output is negligible compared to the residual stream it adds into:
 
+    Sequential architecture (GPT-2 style):
         ratio_attn[l] = mean_pos ||attn_out[l]||₂  /  mean_pos ||resid_pre[l]||₂
         ratio_mlp[l]  = mean_pos ||mlp_out[l]||₂   /  mean_pos ||resid_mid[l]||₂
+
+    Parallel architecture (Pythia / GPT-NeoX style, parallel_attn_mlp=True):
+        Both attention and MLP read from resid_pre directly; hook_resid_mid
+        does not exist.  We use resid_pre as the denominator for both:
+        ratio_attn[l] = mean_pos ||attn_out[l]||₂  /  mean_pos ||resid_pre[l]||₂
+        ratio_mlp[l]  = mean_pos ||mlp_out[l]||₂   /  mean_pos ||resid_pre[l]||₂
 
     Both numerator and denominator use the per-token L2 norm averaged over
     sequence positions (scale-independent, batch-robust).
@@ -292,12 +299,13 @@ def compute_magnitude_ratios(
     attn_ratios : float ndarray [n_layers]
     mlp_ratios  : float ndarray [n_layers]  (zeros for attn-only models)
     """
-    n_layers = model.cfg.n_layers
-    is_ao    = bool(getattr(model.cfg, "attn_only", False))
+    n_layers    = model.cfg.n_layers
+    is_ao       = bool(getattr(model.cfg, "attn_only",        False))
+    is_parallel = bool(getattr(model.cfg, "parallel_attn_mlp", False))
 
     resid_pre_store: dict = {}
     attn_out_store:  dict = {}
-    resid_mid_store: dict = {}
+    resid_mid_store: dict = {}   # empty for parallel models
     mlp_out_store:   dict = {}
 
     fwd_hooks = []
@@ -313,10 +321,12 @@ def compute_magnitude_ratios(
         fwd_hooks.append((f"blocks.{l}.hook_attn_out", _ao))
 
         if not is_ao:
-            def _rm(act, hook, ll=l):
-                resid_mid_store[ll] = act.detach().float()
-                return act
-            fwd_hooks.append((f"blocks.{l}.hook_resid_mid", _rm))
+            if not is_parallel:
+                # Sequential: resid_pre → attn → resid_mid → mlp → resid_post
+                def _rm(act, hook, ll=l):
+                    resid_mid_store[ll] = act.detach().float()
+                    return act
+                fwd_hooks.append((f"blocks.{l}.hook_resid_mid", _rm))
 
             def _mo(act, hook, ll=l):
                 mlp_out_store[ll] = act.detach().float()
@@ -339,12 +349,18 @@ def compute_magnitude_ratios(
             attn_ratios[l] = out_n / (in_n + 1e-8)
 
         if not is_ao:
-            rm = resid_mid_store.get(l)
             mo = mlp_out_store.get(l)
-            if rm is not None and mo is not None:
-                in_n  = rm.norm(dim=-1).mean().item()
-                out_n = mo.norm(dim=-1).mean().item()
-                mlp_ratios[l] = out_n / (in_n + 1e-8)
+            if mo is not None:
+                if is_parallel:
+                    # Parallel arch: MLP reads resid_pre, so use it as denominator
+                    mlp_in = resid_pre_store.get(l)
+                else:
+                    # Sequential arch: MLP reads resid_mid
+                    mlp_in = resid_mid_store.get(l)
+                if mlp_in is not None:
+                    in_n  = mlp_in.norm(dim=-1).mean().item()
+                    out_n = mo.norm(dim=-1).mean().item()
+                    mlp_ratios[l] = out_n / (in_n + 1e-8)
 
     return attn_ratios, mlp_ratios
 
