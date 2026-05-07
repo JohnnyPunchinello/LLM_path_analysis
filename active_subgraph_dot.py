@@ -283,17 +283,28 @@ def compute_magnitude_ratios(
     output is negligible compared to the residual stream it adds into:
 
     Sequential architecture (GPT-2 style):
-        ratio_attn[l] = mean_pos ||attn_out[l]||₂  /  mean_pos ||resid_pre[l]||₂
-        ratio_mlp[l]  = mean_pos ||mlp_out[l]||₂   /  mean_pos ||resid_mid[l]||₂
+        ratio_attn[l] = ||attn_out[l]||₂  /  ||resid_pre[0]||₂   (at prediction pos)
+        ratio_mlp[l]  = ||mlp_out[l]||₂   /  ||resid_pre[0]||₂   (at prediction pos)
 
     Parallel architecture (Pythia / GPT-NeoX style, parallel_attn_mlp=True):
-        Both attention and MLP read from resid_pre directly; hook_resid_mid
-        does not exist.  We use resid_pre as the denominator for both:
-        ratio_attn[l] = mean_pos ||attn_out[l]||₂  /  mean_pos ||resid_pre[l]||₂
-        ratio_mlp[l]  = mean_pos ||mlp_out[l]||₂   /  mean_pos ||resid_pre[l]||₂
+        Same formula; hook_resid_mid does not exist so resid_pre[0] is used
+        as reference for both attn and MLP.
 
-    Both numerator and denominator use the per-token L2 norm averaged over
-    sequence positions (scale-independent, batch-robust).
+    Design rationale (two bugs fixed vs. naive implementation):
+
+    Bug 1 — growing denominator:  Pre-LN models (GPT-2, Pythia) normalise the
+        residual stream before each block, so ||attn_out[l]|| is bounded by the
+        W_O weight scale regardless of depth.  But ||resid_pre[l]|| grows
+        monotonically because every layer adds to the stream.  Dividing a
+        bounded numerator by a growing denominator deflates middle-layer ratios
+        artificially, producing false "silence zones".
+        Fix: use ||resid_pre[0]|| (embedding norm) as a fixed reference for
+        all layers.  This is the natural scale of the Pre-LN input budget.
+
+    Bug 2 — position averaging:  Averaging over all sequence positions mixes
+        prediction-relevant signal (last token) with unrelated positions.
+        Fix: evaluate norms at the last token position only, which is the
+        position whose logit we are explaining.
 
     Returns
     -------
@@ -340,28 +351,28 @@ def compute_magnitude_ratios(
     attn_ratios = np.zeros(n_layers, dtype=np.float32)
     mlp_ratios  = np.zeros(n_layers, dtype=np.float32)
 
+    # ── Reference norm: embedding scale at the prediction position ──────────
+    # Using resid_pre[0] at the last token as the fixed reference for ALL
+    # layers avoids the growing-denominator artifact of Pre-LN transformers.
+    rp0 = resid_pre_store.get(0)
+    if rp0 is None:
+        return attn_ratios, mlp_ratios                 # hooks failed entirely
+    # Last token position = the position whose logit is being explained.
+    ref_n = rp0[:, -1, :].norm(dim=-1).mean().item()  # scalar, embedding scale
+
     for l in range(n_layers):
-        rp = resid_pre_store.get(l)
         ao = attn_out_store.get(l)
-        if rp is not None and ao is not None:
-            # mean per-token L2 norm over [batch, seq] → scalar
-            in_n  = rp.norm(dim=-1).mean().item()
-            out_n = ao.norm(dim=-1).mean().item()
-            attn_ratios[l] = out_n / (in_n + 1e-8)
+        if ao is not None:
+            # Norm at the prediction position only (last token).
+            # Pre-LN: attn_out magnitude is set by W_O weights, not stream size.
+            out_n = ao[:, -1, :].norm(dim=-1).mean().item()
+            attn_ratios[l] = out_n / (ref_n + 1e-8)
 
         if not is_ao:
             mo = mlp_out_store.get(l)
             if mo is not None:
-                if is_parallel:
-                    # Parallel arch: MLP reads resid_pre, so use it as denominator
-                    mlp_in = resid_pre_store.get(l)
-                else:
-                    # Sequential arch: MLP reads resid_mid
-                    mlp_in = resid_mid_store.get(l)
-                if mlp_in is not None:
-                    in_n  = mlp_in.norm(dim=-1).mean().item()
-                    out_n = mo.norm(dim=-1).mean().item()
-                    mlp_ratios[l] = out_n / (in_n + 1e-8)
+                out_n = mo[:, -1, :].norm(dim=-1).mean().item()
+                mlp_ratios[l] = out_n / (ref_n + 1e-8)
 
     return attn_ratios, mlp_ratios
 

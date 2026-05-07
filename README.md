@@ -69,10 +69,11 @@ The arc style encodes whether the transformation block is doing meaningful work:
 The ratio label (`r=0.03`) printed on each block and arc is:
 
 ```
-ratio_attn[l] = ‖attn_out[l]‖₂  /  ‖resid_pre[l]‖₂
-ratio_mlp[l]  = ‖mlp_out[l]‖₂   /  ‖resid_mid[l]‖₂   (sequential)
-             or ‖mlp_out[l]‖₂   /  ‖resid_pre[l]‖₂   (parallel / Pythia)
+ratio_attn[l] = ‖attn_out[l, last_pos]‖₂  /  ‖resid_pre[0, last_pos]‖₂
+ratio_mlp[l]  = ‖mlp_out[l, last_pos]‖₂   /  ‖resid_pre[0, last_pos]‖₂
 ```
+Evaluated at the final (prediction) token position; reference norm fixed to the
+embedding scale `resid_pre[0]` to avoid the Pre-LN growing-denominator artefact.
 
 Typical active layers: 0.10 – 0.50.  Inactive (skip-dominant) layers: < 0.05.
 
@@ -385,20 +386,19 @@ Anchored at `blocks.0.hook_resid_pre` (detached float32 leaf) to avoid propagati
 
 Separately from attribution, each block is classified **active** or **inactive** based on how much it transforms the residual stream relative to its magnitude.
 
-**Sequential architecture (GPT-2 style):**
+**Sequential and Parallel architectures (GPT-2, Pythia, …):**
 ```
-ratio_attn[l] = mean_pos ‖attn_out[l]‖₂  /  mean_pos ‖resid_pre[l]‖₂
-ratio_mlp[l]  = mean_pos ‖mlp_out[l]‖₂   /  mean_pos ‖resid_mid[l]‖₂
-```
-
-**Parallel architecture (Pythia / GPT-NeoX, `parallel_attn_mlp=True`):**  
-Attention and MLP both read from `resid_pre` in parallel; `hook_resid_mid` does not exist in these models.  Both ratios use `resid_pre` as denominator:
-```
-ratio_attn[l] = mean_pos ‖attn_out[l]‖₂  /  mean_pos ‖resid_pre[l]‖₂
-ratio_mlp[l]  = mean_pos ‖mlp_out[l]‖₂   /  mean_pos ‖resid_pre[l]‖₂
+ratio_attn[l] = ‖attn_out[l, last_pos]‖₂  /  ‖resid_pre[0, last_pos]‖₂
+ratio_mlp[l]  = ‖mlp_out[l, last_pos]‖₂   /  ‖resid_pre[0, last_pos]‖₂
 ```
 
-The architecture is detected automatically via `model.cfg.parallel_attn_mlp`.
+Two design choices prevent known measurement artefacts:
+
+**Fixed reference norm (`resid_pre[0]`):** Pre-LN models (GPT-2, Pythia) apply LayerNorm before each block, so `‖attn_out[l]‖` is bounded by the W_O weight scale regardless of depth. But `‖resid_pre[l]‖` grows monotonically because every layer accumulates to the stream. Dividing by a growing denominator deflates middle-layer ratios artificially. Using `‖resid_pre[0]‖` (the embedding norm) as a fixed scale makes all layers comparable.
+
+**Last-position only:** Norms are evaluated at the final token position (the prediction site), not averaged over the full sequence. Position-averaging mixes prediction-relevant signal with unrelated context positions.
+
+The architecture (`parallel_attn_mlp`) is detected automatically via `model.cfg`.
 
 | Condition | Classification | Skip arc |
 |---|---|---|
