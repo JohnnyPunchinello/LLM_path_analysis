@@ -20,15 +20,15 @@ Layout
          |
     ╔══ Layer 0 ══════════════════════════════════════╗  (dashed box)
     ║                                                  ║
-    ║   ╔═══ Multi-Head Attention ════════╗            ║
-    ║   ║  [H0●] [H1○] [H2●] ... [Hn●]  ║            ║
-    ║   ╚═════════════════════════════════╝            ║
-    ║                      ↓                           ║
-    ║                    (Σα) ←─ ─ ─ (residual)        ║
-    ║                      ↓                           ║
-    ║                   [FFN]                          ║
-    ║                      ↓                           ║
-    ║                    (Σα) ←─ ─ ─ (residual)        ║
+    ║   [H0●] [H1○] [H2●] ... [Hn●]                   ║
+    ║          │ (active heads only)                   ║
+    ║         [W_O]  ← concat + project heads          ║
+    ║          │                                       ║
+    ║         (+) ←─ ─ ─ ─ (residual skip)             ║  resid_mid
+    ║          │                                       ║
+    ║        [FFN]                                     ║
+    ║          │                                       ║
+    ║         (+) ←─ ─ ─ ─ (residual skip)             ║  resid_post
     ╚══════════════════════════════════════════════════╝
          |
     ╔══ Layer 1 ══════════════════════════════════════╗
@@ -36,8 +36,9 @@ Layout
 
   Active head / block  : coloured fill + bold border
   Inactive             : grey
-  Residual skip path   : dashed arrow labelled α
-  Summation node       : circle labelled Σα
+  W_O projection node  : dark-red box (GPT-2: concat all heads, project)
+  Residual-add node    : small circle labelled "+"
+  Residual skip path   : U-shaped arc left of cluster, labelled α
 
 Usage
 -----
@@ -420,6 +421,7 @@ def build_mermaid(
         "  classDef active_mlp   fill:#1f77b4,stroke:#1a5276,stroke-width:2px,color:#fff",
         "  classDef inactive_mlp fill:#f4f4f4,stroke:#cccccc,stroke-width:1px,color:#aaa",
         "  classDef sigma        fill:#fff,stroke:#444,stroke-width:1.5px,color:#333,font-size:14px",
+        "  classDef wo_node      fill:#a93226,stroke:#7b241c,stroke-width:2px,color:#fff",
         "  classDef io_node      fill:#f0f0f0,stroke:#555,stroke-width:2px,color:#222",
         "",
         "  %% ── Prompt ──────────────────────────────────────────────────────",
@@ -436,8 +438,9 @@ def build_mermaid(
         n_act_h  = 0
         act_h    = _active_heads(head_scores, l, head_threshold)
 
-        sa_id    = _mermaid_node_id("SA", l)     # Σα after attn
-        sm_id    = _mermaid_node_id("SM", l)     # Σα after MLP
+        wo_id    = _mermaid_node_id("WO", l)     # W_O output projection
+        sa_id    = _mermaid_node_id("SA", l)     # "+" residual add: resid_mid = resid_pre + attn_out
+        sm_id    = _mermaid_node_id("SM", l)     # "+" residual add: resid_post = resid_mid + mlp_out
         ffn_id   = _mermaid_node_id("FFN", l)
 
         # Layer summary for subgraph label (includes magnitude ratios)
@@ -463,8 +466,13 @@ def build_mermaid(
             else:
                 lines.append(f"    {hid}[\"H{h} ○\"]:::inactive_head")
 
-        # Σα after attention
-        lines.append(f"    {sa_id}((\"Σα\")):::sigma")
+        # W_O output-projection node (only when magnitude-active)
+        # Correctly models GPT-2: heads are concat+projected before residual add
+        if active_attn[l]:
+            lines.append(f"    {wo_id}[\"W_O\"]:::wo_node")
+
+        # "+" residual-add node: resid_mid = resid_pre + attn_out
+        lines.append(f"    {sa_id}((\"+\")):::sigma")
 
         # MLP / FFN
         if not is_attn_only:
@@ -473,8 +481,8 @@ def build_mermaid(
                 lines.append(f"    {ffn_id}[\"FFN  L{l}\"]:::active_mlp")
             else:
                 lines.append(f"    {ffn_id}[\"FFN  L{l}\"]:::inactive_mlp")
-            # Σα after MLP
-            lines.append(f"    {sm_id}((\"Σα\")):::sigma")
+            # "+" residual-add node: resid_post = resid_mid + mlp_out
+            lines.append(f"    {sm_id}((\"+\")):::sigma")
 
         lines.append("  end")
         lines.append("")
@@ -491,7 +499,11 @@ def build_mermaid(
         for h, hid in enumerate(head_ids):
             if active_attn[l] and act_h[h]:
                 lines.append(f"  {prev_sum} --> {hid}")
-                lines.append(f"  {hid} --> {sa_id}")
+                lines.append(f"  {hid} --> {wo_id}")  # heads → W_O, not directly to "+"
+
+        # W_O projection output → residual-add node
+        if active_attn[l] and sum(act_h) > 0:
+            lines.append(f"  {wo_id} --> {sa_id}")
 
         if not is_attn_only:
             mlp_skip = (f"  {sa_id} -- α r={mlp_ratios[l]:.2f} --> {sm_id}"
@@ -581,13 +593,17 @@ def build_dot(
         '            fillcolor="#1f77b4", style=filled, fontcolor=white, fontsize=7];',
         '    LEG_FI [label="FFN (inactive)", shape=box,'
         '            fillcolor="#f4f4f4", style=filled, fontcolor="#aaa", fontsize=7];',
+        '    LEG_WO [label="W_O projection\\n(concat+project\\nall heads)", shape=box,'
+        '            fillcolor="#a93226", style=filled, fontcolor=white, fontsize=7];',
+        '    LEG_PA [label="+ node\\n(residual add)", shape=circle,'
+        '            fillcolor="#f5f5dc", style=filled, fontcolor="#333", fontsize=7];',
         '    LEG_R  [label="Residual stream\\ncheckpoint", shape=diamond,'
         f'            fillcolor="{_RESID_NODE}", style=filled, fontcolor="#1a5276", fontsize=7];',
         '    LEG_SK [label="Skip arc\\n(block inactive,\\nthick teal)", shape=plaintext,'
         '            fontsize=7, fontcolor="#17a589"];',
         '    LEG_SA [label="Skip arc\\n(block active,\\nthin grey dashed)", shape=plaintext,'
         '            fontsize=7, fontcolor="#999999"];',
-        '    { rank=same; LEG_A; LEG_AI; LEG_F; LEG_FI; LEG_R; LEG_SK; LEG_SA; }',
+        '    { rank=same; LEG_A; LEG_AI; LEG_WO; LEG_PA; LEG_F; LEG_FI; LEG_R; LEG_SK; LEG_SA; }',
         '  }',
         '',
     ]
@@ -641,8 +657,9 @@ def build_dot(
     for l in range(n_layers):
         act_h  = _active_heads(head_scores, l, head_threshold)
         n_ah   = sum(act_h) if active_attn[l] else 0
-        sa_id  = f"SA_{l}"
-        sm_id  = f"SM_{l}"
+        wo_id  = f"WO_{l}"    # W_O output projection (concat + project all heads)
+        sa_id  = f"SA_{l}"    # residual add: resid_pre + attn_out = resid_mid
+        sm_id  = f"SM_{l}"    # residual add: resid_mid + mlp_out = resid_post
         ffn_id = f"FFN_{l}"
         rs_in  = f"RS_{l}"       # stream checkpoint entering this layer
         rs_out = f"RS_{l+1}"     # stream checkpoint leaving this layer
@@ -675,9 +692,21 @@ def build_dot(
                     penwidth=0.8, fontcolor="#aaaaaa"))
         lines.append(f'    }}')
 
-        # Σα after attention
+        # ── W_O output-projection node (GPT-2 architecture) ──────────────
+        # In GPT-2 the per-head outputs z_h are concatenated and linearly
+        # projected:  attn_out = Concat(z_0..z_H) W_O
+        # This is distinct from the residual addition performed at SA below.
+        # W_O is only shown when the attention block is magnitude-active.
+        if active_attn[l]:
+            lines.append("    " + dot_node(
+                wo_id, "W_O", shape="box",
+                fillcolor="#a93226", color="#7b241c",
+                penwidth=1.8, fontcolor="#ffffff"))
+
+        # ── Residual-add node: resid_mid = resid_pre + attn_out ──────────
+        # Labelled "+" (not "\u03a3") to clearly show this is the skip addition.
         lines.append("    " + dot_node(
-            sa_id, "\u03a3", shape="circle",
+            sa_id, "+", shape="circle",
             fillcolor=_SIGMA_BG, color="#444444",
             penwidth=1.5, fontcolor="#333333",
             width="0.35", height="0.35", fixedsize="true"))
@@ -697,8 +726,9 @@ def build_dot(
                     fillcolor=_INACTIVE, color="#cccccc",
                     penwidth=0.8, fontcolor="#aaaaaa"))
 
+            # Residual-add node: resid_post = resid_mid + mlp_out
             lines.append("    " + dot_node(
-                sm_id, "\u03a3", shape="circle",
+                sm_id, "+", shape="circle",
                 fillcolor=_SIGMA_BG, color="#444444",
                 penwidth=1.5, fontcolor="#333333",
                 width="0.35", height="0.35", fixedsize="true"))
@@ -706,16 +736,24 @@ def build_dot(
         lines.append("  }")   # end cluster
         lines.append("")
 
-        # ── Compute edges (attn, MLP) ──────────────────────────────────────
+        # ── Compute edges ──────────────────────────────────────────────────
+        # GPT-2 attention: resid_pre → each head → W_O → [+] (residual add)
+        # Heads flow into W_O (output projection), NOT directly into the "+" node.
         for h in range(n_heads):
             hid = f"H_{l}_{h}"
             if active_attn[l] and act_h[h]:
                 lines.append(dot_edge(rs_in, hid,
                                        color="#d62728", penwidth=1.6,
                                        weight="2"))
-                lines.append(dot_edge(hid, sa_id,
+                lines.append(dot_edge(hid, wo_id,
                                        color="#d62728", penwidth=1.6,
                                        weight="2"))
+
+        # W_O output feeds into the residual-add "+" node
+        if active_attn[l] and n_ah > 0:
+            lines.append(dot_edge(wo_id, sa_id,
+                                   color="#d62728", penwidth=1.8,
+                                   weight="2"))
 
         if not is_attn_only:
             if active_mlp[l]:
