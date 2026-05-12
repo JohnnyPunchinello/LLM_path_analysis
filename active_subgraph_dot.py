@@ -122,8 +122,40 @@ def _mlp_colour(score_norm: float) -> str:
 # Model loading
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Families that require fold_ln=False, center_writing_weights=False,
+# center_unembed=False (RMSNorm or non-standard LayerNorm variants).
+_NO_FOLD_LN_FAMILIES: tuple = (
+    "llama", "mistral", "gemma", "falcon",
+    "qwen", "yi", "olmo", "phi", "deepseek",
+    "vicuna", "alpaca", "orca", "platypus",
+    "command", "cohere", "mixtral",
+)
+
 def _is_llama_family(name: str) -> bool:
-    return any(k in name.lower() for k in ("llama", "mistral", "gemma", "falcon"))
+    return any(k in name.lower() for k in _NO_FOLD_LN_FAMILIES)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Recommended open-source models by parameter scale
+# (GPT-4o is closed-source; these are the nearest open alternatives for
+#  active-subgraph analysis via TransformerLens)
+# ─────────────────────────────────────────────────────────────────────────────
+LARGE_MODEL_PRESETS: dict = {
+    # key: (hf_repo, n_layers, n_heads, vram_4bit_GB, notes)
+    "gpt2-xl":          ("gpt2-xl",                             48, 25,  7,  "No token needed"),
+    "gpt-j-6b":         ("EleutherAI/gpt-j-6b",                 28, 16,  4,  "No token needed"),
+    "gpt-neox-20b":     ("EleutherAI/gpt-neox-20b",             44, 64, 12,  "No token needed; parallel arch"),
+    "pythia-12b":       ("EleutherAI/pythia-12b",               36, 40,  8,  "No token needed; parallel arch"),
+    "mistral-7b":       ("mistralai/Mistral-7B-v0.1",           32, 32,  5,  "No token needed"),
+    "mixtral-8x7b":     ("mistralai/Mixtral-8x7B-v0.1",         32, 32, 25,  "MoE; no token needed"),
+    "gemma-7b":         ("google/gemma-7b",                     28, 16,  5,  "Requires HF token"),
+    "llama-3-8b":       ("NousResearch/Meta-Llama-3-8B",        32, 32,  5,  "No token needed (NousResearch)"),
+    "llama-3-70b":      ("meta-llama/Meta-Llama-3-70B",         80, 64, 40,  "Requires HF approval; A100 80GB"),
+    "llama-3-8b-inst":  ("NousResearch/Meta-Llama-3-8B-Instruct", 32, 32, 5, "Instruction-tuned"),
+    "qwen-7b":          ("Qwen/Qwen1.5-7B",                     32, 32,  5,  "No token needed"),
+    "phi-3-mini":       ("microsoft/Phi-3-mini-4k-instruct",    32, 32,  3,  "3.8B; no token needed"),
+}
+
 
 
 def load_model(model_name: str, device: str = "cuda",
@@ -840,6 +872,227 @@ def build_dot(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Compact DOT generator  (large-model summary mode — no individual head nodes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_compact_dot(
+    model_name:    str,
+    n_layers:      int,
+    n_heads:       int,
+    head_scores:   np.ndarray,
+    mlp_scores:    np.ndarray,
+    active_attn:   List[bool],
+    active_mlp:    List[bool],
+    attn_ratios:   np.ndarray,
+    mlp_ratios:    np.ndarray,
+    task_text:     str,
+    task_label:    str,
+    mass_coverage: float,
+    epsilon:       float,
+    k_edges:       int,
+    is_attn_only:  bool = False,
+    head_threshold: float = 0.15,
+    mag_threshold:  float = MAG_THRESHOLD,
+    layer_window:   Optional[Tuple[int, int]] = None,
+    **_,
+) -> str:
+    """
+    Compact layer-summary Graphviz DOT graph for large models.
+
+    Draws one [Attn] box + one [FFN] box per layer instead of individual head
+    ellipses.  Scales to 80+ layer models (Llama-3-70B, GPT-NeoX-20B, etc.)
+    without overwhelming Graphviz.
+
+    Node colour encodes the magnitude ratio (heat-map: pale → deep).
+    Skip arc style encodes block activity:
+      - thick teal  = skip-dominant / block inactive  (ratio < threshold)
+      - thin dashed = block active  (ratio >= threshold)
+
+    layer_window : Optional (first_n, last_n).
+        When set, only the first `first_n` and last `last_n` layers are
+        rendered, separated by a '…' gap node.  Useful for 80-layer models.
+    """
+    _RESID_COL = "#17a589"  # teal = skip-dominant path
+
+    ar_max  = max(float(attn_ratios.max()), 1e-6)
+    mr_max  = max(float(mlp_ratios.max()),  1e-6) if not is_attn_only else 1.0
+    wrapped = textwrap.shorten(task_text, width=70, placeholder=" ...")
+
+    # ── Determine which layers to draw ───────────────────────────────────────
+    gap_after: Optional[int] = None   # layer index after which to insert '...'
+    if layer_window is not None:
+        fn, ln = layer_window
+        if fn + ln >= n_layers:
+            layers_to_show = list(range(n_layers))
+        else:
+            layers_to_show = list(range(fn)) + list(range(n_layers - ln, n_layers))
+            gap_after = fn - 1
+    else:
+        layers_to_show = list(range(n_layers))
+
+    n_act_a = sum(active_attn[l] for l in layers_to_show)
+    n_act_m = (sum(active_mlp[l] for l in layers_to_show)
+               if not is_attn_only else 0)
+    omit_note = (
+        f"  (showing {len(layers_to_show)}/{n_layers} layers)"
+        if len(layers_to_show) < n_layers else ""
+    )
+
+    header = (
+        f"{task_label} | {model_name} | {n_layers}L × {n_heads}H{omit_note}\\n"
+        f'\\"{wrapped}\\"\\n'
+        f"Active attn: {n_act_a}/{n_layers}   "
+        f"Active FFN: {n_act_m}/{n_layers}   "
+        f"threshold: {mag_threshold}"
+    )
+
+    lines: List[str] = [
+        "digraph compact_subgraph {",
+        f'  label="{header}";',
+        '  labelloc=t; fontsize=10; fontname="Helvetica";',
+        "  rankdir=TB;",
+        "  splines=curved;",
+        "  nodesep=0.25; ranksep=0.50;",
+        '  node [fontname="Helvetica" fontsize=9 style=filled];',
+        '  edge [fontname="Helvetica" fontsize=7];',
+        "",
+        '  EMB [label="Embedding" shape=box fillcolor="#e8f5e9" '
+        'color="#388e3c" penwidth=1.5 fontcolor="#1b5e20"];',
+        "",
+    ]
+
+    gap_inserted = False
+
+    # ── Node declarations ────────────────────────────────────────────────────
+    for l in layers_to_show:
+        a_id  = f"A{l}"
+        sa_id = f"SA{l}"
+        f_id  = f"F{l}"
+        sm_id = f"SM{l}"
+
+        # Attn block
+        if active_attn[l]:
+            t      = min(1.0, float(attn_ratios[l]) / ar_max)
+            a_fill = _lerp_hex(_ATTN_LO, _ATTN_HI, t)
+            a_bord, a_pw, a_fc = "#7b241c", "2.0", "#ffffff"
+        else:
+            a_fill, a_bord, a_pw, a_fc = _INACTIVE, "#cccccc", "0.8", "#888888"
+
+        # Count active heads in this layer (informational label)
+        row_max = float(head_scores[l].max()) if head_scores[l].max() > 0 else 1e-9
+        n_ah = sum(1 for h in range(n_heads)
+                   if head_scores[l, h] >= head_threshold * row_max)
+        a_label = f"Attn L{l}  ({n_ah}/{n_heads} heads)\\nr={attn_ratios[l]:.2f}"
+        lines.append(
+            f'  {a_id} [label="{a_label}" shape=box '
+            f'fillcolor="{a_fill}" color="{a_bord}" penwidth={a_pw} '
+            f'fontcolor="{a_fc}"];'
+        )
+        lines.append(
+            f'  {sa_id} [label="+" shape=circle fillcolor="{_SIGMA_BG}" '
+            f'color="#444444" penwidth=1.5 width=0.30 height=0.30 '
+            f'fixedsize=true fontcolor="#333333"];'
+        )
+
+        if not is_attn_only:
+            if active_mlp[l]:
+                t      = min(1.0, float(mlp_ratios[l]) / mr_max)
+                f_fill = _lerp_hex(_MLP_LO, _MLP_HI, t)
+                f_bord, f_pw, f_fc = "#1a5276", "2.0", "#ffffff"
+            else:
+                f_fill, f_bord, f_pw, f_fc = _INACTIVE, "#cccccc", "0.8", "#888888"
+
+            f_label = f"FFN L{l}\\nr={mlp_ratios[l]:.2f}"
+            lines.append(
+                f'  {f_id} [label="{f_label}" shape=box '
+                f'fillcolor="{f_fill}" color="{f_bord}" penwidth={f_pw} '
+                f'fontcolor="{f_fc}"];'
+            )
+            lines.append(
+                f'  {sm_id} [label="+" shape=circle fillcolor="{_SIGMA_BG}" '
+                f'color="#444444" penwidth=1.5 width=0.30 height=0.30 '
+                f'fixedsize=true fontcolor="#333333"];'
+            )
+
+        # Gap node (declared once, after the first section ends)
+        if gap_after is not None and l == gap_after and not gap_inserted:
+            lines.append(
+                '  GAP [label="⋮  (middle layers omitted)  ⋮" '
+                'shape=plaintext fontsize=12 fontcolor="#999999" style=""];'
+            )
+            gap_inserted = True
+
+        lines.append("")
+
+    # ── Edge declarations ─────────────────────────────────────────────────────
+    lines.append("  // ── Edges ──")
+    prev = "EMB"
+    gap_edge_done = False
+
+    for l in layers_to_show:
+        a_id  = f"A{l}"
+        sa_id = f"SA{l}"
+        f_id  = f"F{l}"
+        sm_id = f"SM{l}"
+
+        # Main chain
+        lines.append(f'  {prev} -> {a_id} [color="#555555" penwidth=1.4];')
+        lines.append(f'  {a_id} -> {sa_id} [color="#d62728" penwidth=1.5];')
+
+        # Attention skip arc
+        if active_attn[l]:
+            lines.append(
+                f'  {prev} -> {sa_id} [style=dashed color="#aaaaaa" penwidth=1.0 '
+                f'label="α {attn_ratios[l]:.2f}" '
+                f'constraint=false weight=0 arrowhead=open fontsize=7];'
+            )
+        else:
+            lines.append(
+                f'  {prev} -> {sa_id} [style=bold color="{_RESID_COL}" penwidth=3.0 '
+                f'label="α {attn_ratios[l]:.2f}" '
+                f'constraint=false weight=0 arrowhead=open fontsize=7];'
+            )
+
+        if not is_attn_only:
+            lines.append(f'  {sa_id} -> {f_id} [color="#555555" penwidth=1.4];')
+            lines.append(f'  {f_id} -> {sm_id} [color="#1f77b4" penwidth=1.5];')
+            if active_mlp[l]:
+                lines.append(
+                    f'  {sa_id} -> {sm_id} [style=dashed color="#aaaaaa" penwidth=1.0 '
+                    f'label="α {mlp_ratios[l]:.2f}" '
+                    f'constraint=false weight=0 arrowhead=open fontsize=7];'
+                )
+            else:
+                lines.append(
+                    f'  {sa_id} -> {sm_id} [style=bold color="{_RESID_COL}" penwidth=3.0 '
+                    f'label="α {mlp_ratios[l]:.2f}" '
+                    f'constraint=false weight=0 arrowhead=open fontsize=7];'
+                )
+            prev = sm_id
+        else:
+            prev = sa_id
+
+        # Transition to gap node
+        if gap_after is not None and l == gap_after and not gap_edge_done:
+            lines.append(
+                f'  {prev} -> GAP [style=dashed color="#bbbbbb" arrowhead=none];'
+            )
+            prev = "GAP"
+            gap_edge_done = True
+
+    lines += [
+        "",
+        '  OUT [label="Logits / Output" shape=box fillcolor="#fce4ec" '
+        'color="#c62828" penwidth=1.5 fontcolor="#7f0000"];',
+        f'  {prev} -> OUT [color="#555555" penwidth=1.5];',
+        "",
+        f'  // Stats: k={k_edges}  epsilon={epsilon:.5f}  coverage={mass_coverage:.0%}',
+        "}",
+    ]
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Rendering helper (SVG + PNG)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -864,7 +1117,7 @@ def _render_dot(dot_str: str, out_stem: str) -> None:
         return
 
     dot_path = Path(f"{out_stem}.dot")
-    _RENDER_TIMEOUT = 30   # seconds per format; increase if you have a very large model
+    _RENDER_TIMEOUT = 90   # seconds per format (large models with many layers need more time)
 
     for fmt in ("svg", "png"):
         out = Path(f"{out_stem}.{fmt}")
@@ -1104,13 +1357,15 @@ TASK_SUITES: dict = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def process_task(
-    model:         HookedTransformer,
-    text:          str,
-    label:         str,
-    mass_coverage: float,
-    out_stem:      str,
+    model:          HookedTransformer,
+    text:           str,
+    label:          str,
+    mass_coverage:  float,
+    out_stem:       str,
     head_threshold: float,
     mag_threshold:  float = MAG_THRESHOLD,
+    compact:        bool  = False,
+    layer_window:   Optional[Tuple[int, int]] = None,
 ) -> None:
     n_layers = model.cfg.n_layers
     n_heads  = model.cfg.n_heads
@@ -1166,25 +1421,41 @@ def process_task(
         mag_threshold=mag_threshold,
     )
 
-    # ── Mermaid ───────────────────────────────────────────────────────────────
-    md_path = Path(f"{out_stem}.md")
-    md_path.parent.mkdir(parents=True, exist_ok=True)
-    mermaid_str = build_mermaid(**common)
-    md_path.write_text(
-        f"```mermaid\n{mermaid_str}\n```\n\n"
-        f"<!-- Paste the block above at https://mermaid.live to render -->\n",
-        encoding="utf-8",
-    )
-    print(f"  Mermaid  → {md_path}")
+    # Auto-enable compact for large models (> 30 layers)
+    emit_compact = compact or (n_layers > 30)
+    # For very large models (> 40 layers), skip the full per-head graph to
+    # avoid Graphviz timeouts; only the compact summary is practical.
+    emit_full = n_layers <= 40
 
-    # ── DOT ───────────────────────────────────────────────────────────────────
-    dot_path = Path(f"{out_stem}.dot")
-    dot_str  = build_dot(**common)
-    dot_path.write_text(dot_str, encoding="utf-8")
-    print(f"  DOT      → {dot_path}")
+    Path(out_stem).parent.mkdir(parents=True, exist_ok=True)
 
-    # ── SVG + PNG rendering ───────────────────────────────────────────────────
-    _render_dot(dot_str, out_stem)
+    # ── Mermaid (full per-head graph) ─────────────────────────────────────────
+    if emit_full:
+        md_path = Path(f"{out_stem}.md")
+        mermaid_str = build_mermaid(**common)
+        md_path.write_text(
+            f"```mermaid\n{mermaid_str}\n```\n\n"
+            f"<!-- Paste the block above at https://mermaid.live to render -->\n",
+            encoding="utf-8",
+        )
+        print(f"  Mermaid  → {md_path}")
+
+    # ── DOT — full per-head graph ─────────────────────────────────────────────
+    if emit_full:
+        dot_path = Path(f"{out_stem}.dot")
+        dot_str  = build_dot(**common)
+        dot_path.write_text(dot_str, encoding="utf-8")
+        print(f"  DOT      → {dot_path}")
+        _render_dot(dot_str, out_stem)
+
+    # ── Compact DOT — layer-summary graph (no individual head nodes) ──────────
+    if emit_compact:
+        c_stem   = f"{out_stem}_compact"
+        c_dot    = build_compact_dot(**common, layer_window=layer_window)
+        c_path   = Path(f"{c_stem}.dot")
+        c_path.write_text(c_dot, encoding="utf-8")
+        print(f"  Compact  → {c_path}")
+        _render_dot(c_dot, c_stem)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1240,7 +1511,39 @@ def main() -> None:
         "--out", default="graphs/subgraph",
         help="Output path stem. With multiple models the model name is appended.",
     )
+    parser.add_argument(
+        "--compact", action="store_true",
+        help=(
+            "Emit a compact layer-summary DOT graph (one Attn + one FFN box "
+            "per layer, no individual head nodes). Auto-enabled for models "
+            "with more than 30 layers."
+        ),
+    )
+    parser.add_argument(
+        "--max_layers", type=int, default=None,
+        metavar="N",
+        help=(
+            "In compact mode, window the graph to the first N//2 and last N//2 "
+            "layers with a '…' gap for the middle. Useful for 70B/80-layer models. "
+            "Example: --max_layers 16 shows first 8 + last 8 layers."
+        ),
+    )
+    parser.add_argument(
+        "--list_presets", action="store_true",
+        help="Print the table of large-model presets and exit.",
+    )
     args = parser.parse_args()
+
+    if args.list_presets:
+        print("\nLarge-model presets (open-source, TransformerLens-compatible):\n")
+        print(f"  {'Key':<18} {'HF repo':<50} {'L':>3} {'H':>3} "
+              f"{'VRAM(4bit)':>10}  Notes")
+        print("  " + "-" * 95)
+        for key, (repo, nl, nh, vram, note) in LARGE_MODEL_PRESETS.items():
+            print(f"  {key:<18} {repo:<50} {nl:>3} {nh:>3} "
+                  f"{'~'+str(vram)+'GB':>10}  {note}")
+        print()
+        return
 
     # ── Resolve task list ─────────────────────────────────────────────────────
     if args.tasks:
@@ -1285,6 +1588,14 @@ def main() -> None:
         out_base = (f"{args.out}_{safe}"
                     if len(model_names) > 1 else args.out)
 
+        # Layer window for compact graph
+        layer_window: Optional[Tuple[int, int]] = None
+        if args.max_layers is not None and args.max_layers < n_lay:
+            half = args.max_layers // 2
+            layer_window = (half, args.max_layers - half)
+            print(f"  Layer window: first {half} + last {args.max_layers - half} "
+                  f"of {n_lay} layers")
+
         for i, (text, label) in enumerate(zip(tasks, labels)):
             print(f"\n  [{i+1}/{len(tasks)}] {label!r}")
             print(f"    {text[:80]}{'...' if len(text) > 80 else ''}")
@@ -1298,6 +1609,8 @@ def main() -> None:
                     out_stem=stem,
                     head_threshold=args.head_threshold,
                     mag_threshold=args.mag_threshold,
+                    compact=args.compact,
+                    layer_window=layer_window,
                 )
             except Exception as exc:
                 print(f"  ERROR: {exc}")
