@@ -401,31 +401,30 @@ def load_model(model_name: str, device: str = "cuda",
         print(f"  GPU: {vram_gb:.0f} GB VRAM  |  "
               f"model ~{param_b:.0f}B params ({bf16_gb:.0f} GB bfloat16)")
 
-        # ── Strategy A: bfloat16 via TransformerLens (CPU-first load) ─────────
-        # HF model loads to CPU RAM; TL creates its own GPU model and copies
-        # weights from CPU tensors one-at-a-time via load_state_dict.
-        # Peak GPU = one model only (~bf16_gb GB).
-        if bf16_gb < vram_gb * 0.75:
-            print(f"  [A] Loading HF model to CPU RAM (bfloat16) …")
+        # ── Strategy A: bfloat16 via TransformerLens (all-GPU) ───────────────
+        # During from_pretrained TL holds three copies simultaneously:
+        #   HF model + TL model + state-dict tensors ≈ 3 × bf16_gb peak.
+        # Only use this path when the triple-copy peak fits in 90% of VRAM.
+        if bf16_gb * 3 < vram_gb * 0.90:
+            print(f"  [A] Loading HF model to GPU (bfloat16) …")
             hf_model_a = None
             try:
                 hf_model_a = AutoModelForCausalLM.from_pretrained(
                     model_name,
                     torch_dtype=torch.bfloat16,
+                    device_map="auto",
                     low_cpu_mem_usage=True,
-                    # No device_map → stays on CPU by default
                 )
                 tokenizer_a = AutoTokenizer.from_pretrained(model_name)
                 hf_model_a.eval()
 
-                print(f"  [A] Wrapping with TransformerLens (CPU→GPU) …")
+                print(f"  [A] Wrapping with TransformerLens …")
                 tl_model = HookedTransformer.from_pretrained(
                     model_name,
                     hf_model=hf_model_a,
                     tokenizer=tokenizer_a,
                     dtype=torch.bfloat16,
-                    device="cuda",
-                    move_to_device=False,
+                    move_to_device=True,
                     **extra,
                 )
                 del hf_model_a
