@@ -135,6 +135,32 @@ def _is_llama_family(name: str) -> bool:
     return any(k in name.lower() for k in _NO_FOLD_LN_FAMILIES)
 
 
+def _estimate_param_billions(name: str) -> float:
+    """
+    Rough parameter-count estimate (in billions) from a model name string.
+    Used to decide whether bfloat16 fits on the available GPU before
+    attempting 4-bit quantization (which has more TransformerLens edge cases).
+    """
+    import re
+    # Match "7b", "8b", "13b", "70b", "0.5b", "1.5b" etc. (case-insensitive)
+    m = re.search(r'(\d+(?:\.\d+)?)\s*[bB](?:\b|-)', name)
+    if m:
+        return float(m.group(1))
+    # Explicit well-known names that don't encode size
+    lname = name.lower()
+    if "phi-3-mini"    in lname: return 3.8
+    if "phi-3-small"   in lname: return 7.0
+    if "phi-3-medium"  in lname: return 14.0
+    if "phi-2"         in lname: return 2.7
+    if "gpt-neox-20b"  in lname: return 20.0
+    if "gpt-j"         in lname: return 6.0
+    if "gpt2-xl"       in lname: return 1.5
+    if "gpt2-large"    in lname: return 0.8
+    if "gpt2-medium"   in lname: return 0.35
+    if "gpt2"          in lname: return 0.12
+    return 7.0   # conservative default: assume ~7B if unknown
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Recommended open-source models by parameter scale
 # (GPT-4o is closed-source; these are the nearest open alternatives for
@@ -174,87 +200,92 @@ def load_model(model_name: str, device: str = "cuda",
                      center_unembed=False)
 
     if device == "cuda":
-        # ── Two-step loading: HuggingFace first, then TransformerLens wrapper ──
-        #
-        # Why two steps?  When quantization_config is passed directly to
-        # HookedTransformer.from_pretrained(), TransformerLens never sets
-        # cfg.load_in_4bit=True internally.  The convert_llama_weights()
-        # function then tries einops.rearrange() on Params4bit tensors, which
-        # crashes at the first layer (typically ~15% through the weight loop).
-        #
-        # The correct path is:
-        #   1. AutoModelForCausalLM.from_pretrained(quantization_config=bnb)
-        #      → HF builds an hf_model with .config.quantization_config set
-        #   2. HookedTransformer.from_pretrained(hf_model=hf_model)
-        #      → TL reads hf_model.config and sets cfg.load_in_4bit=True
-        #      → convert_llama_weights() skips rearrange on Params4bit tensors ✓
-        #
-        # low_cpu_mem_usage=True streams weights directly to GPU shard-by-shard
-        # instead of buffering the entire model in CPU RAM first — critical for
-        # 70B models where the bfloat16 weights alone need ~140 GB CPU RAM.
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
+        vram_gb  = torch.cuda.get_device_properties(0).total_memory / 1e9
+        param_b  = _estimate_param_billions(model_name)
+        bf16_gb  = param_b * 2.0   # bfloat16 = 2 bytes / parameter
+
+        print(f"  GPU VRAM: {vram_gb:.0f} GB  |  model ~{param_b:.0f}B params "
+              f"({bf16_gb:.0f} GB in bfloat16)")
+
+        # ── Strategy A: bfloat16 (preferred) ──────────────────────────────────
+        # Use plain bfloat16 whenever the model fits in VRAM.
+        # This avoids all BitsAndBytes/Params4bit edge cases with TransformerLens
+        # (4-bit quantization causes TransformerLens to hang during cls(cfg)
+        # construction because it tries to materialise Params4bit tensors into
+        # newly-allocated float32 Parameters).
+        #
+        # Rule of thumb: bfloat16 fits if  param_b × 2 GB < 0.75 × VRAM GB
+        # i.e. a 8B model needs 16 GB; an A100-80G has 60 GB free budget → OK.
+        if bf16_gb < vram_gb * 0.75:
+            print(f"  Loading in bfloat16 (fits in VRAM) …")
+            try:
+                hf_model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    torch_dtype=torch.bfloat16,
+                    device_map="auto",
+                    low_cpu_mem_usage=True,
+                )
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+                hf_model.eval()
+                print(f"  HF model ready.  Wrapping with TransformerLens …")
+                model = HookedTransformer.from_pretrained(
+                    model_name,
+                    hf_model=hf_model,
+                    tokenizer=tokenizer,
+                    dtype=torch.bfloat16,   # keep TL params in bfloat16, not float32
+                    move_to_device=False,   # already device-mapped by HF
+                    **extra,
+                )
+                print(f"  Loaded {model_name} in bfloat16.")
+                return model
+            except Exception as e:
+                print(f"  bfloat16 failed ({type(e).__name__}: {e})")
+                print(f"  Falling through to 4-bit …")
+
+        # ── Strategy B: 4-bit NF4 (for models too large for bfloat16) ─────────
+        # Two-step pattern is required:
+        #   1. AutoModelForCausalLM.from_pretrained(quantization_config=bnb)
+        #      → hf_model.config.quantization_config is populated
+        #   2. HookedTransformer.from_pretrained(hf_model=hf_model)
+        #      → TL reads that config → cfg.load_in_4bit=True
+        #      → convert_llama_weights() skips einops.rearrange on Params4bit ✓
+        # Passing quantization_config directly to HookedTransformer.from_pretrained
+        # bypasses this and causes the 15% crash (cfg.load_in_4bit stays False).
         try:
-            from transformers import (AutoModelForCausalLM, AutoTokenizer,
-                                      BitsAndBytesConfig)
+            from transformers import BitsAndBytesConfig
             bnb = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=torch.bfloat16,
                 bnb_4bit_use_double_quant=True,
             )
-
-            # Leave ~12 % of VRAM as headroom for activations / KV cache.
-            vram_gb  = torch.cuda.get_device_properties(0).total_memory / 1e9
-            gpu_mem  = f"{max(8, int(vram_gb * 0.88))}GiB"
-            print(f"  VRAM detected: {vram_gb:.0f} GB  →  model budget: {gpu_mem}")
-            print(f"  Step 1/2  Loading HuggingFace model with 4-bit NF4 …")
+            gpu_mem = f"{max(8, int(vram_gb * 0.88))}GiB"
+            print(f"  Loading with 4-bit NF4 (budget {gpu_mem}) …")
 
             hf_model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 quantization_config=bnb,
                 device_map="auto",
-                low_cpu_mem_usage=True,       # stream weights; skip CPU RAM buffer
+                low_cpu_mem_usage=True,
                 torch_dtype=torch.bfloat16,
                 max_memory={0: gpu_mem, "cpu": "60GiB"},
             )
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             hf_model.eval()
-
-            print(f"  Step 2/2  Wrapping with TransformerLens …")
+            print(f"  HF model ready.  Wrapping with TransformerLens …")
             model = HookedTransformer.from_pretrained(
                 model_name,
-                hf_model=hf_model,      # TL reads quantization_config → cfg.load_in_4bit=True
+                hf_model=hf_model,
                 tokenizer=tokenizer,
-                move_to_device=False,   # model already device-mapped by HF; don't touch it
+                move_to_device=False,
                 **extra,
             )
-            print(f"  Loaded {model_name} with 4-bit NF4 (two-step).")
+            print(f"  Loaded {model_name} with 4-bit NF4.")
             return model
-
         except Exception as e:
-            print(f"  4-bit two-step failed ({type(e).__name__}: {e})")
-            print(f"  Falling back to bfloat16 with device_map=auto …")
-            try:
-                from transformers import AutoModelForCausalLM, AutoTokenizer
-                hf_model = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    device_map="auto",
-                    low_cpu_mem_usage=True,
-                    torch_dtype=torch.bfloat16,
-                )
-                tokenizer = AutoTokenizer.from_pretrained(model_name)
-                hf_model.eval()
-                model = HookedTransformer.from_pretrained(
-                    model_name,
-                    hf_model=hf_model,
-                    tokenizer=tokenizer,
-                    move_to_device=False,
-                    **extra,
-                )
-                print(f"  Loaded {model_name} in bfloat16.")
-                return model
-            except Exception as e2:
-                print(f"  bfloat16 also failed ({type(e2).__name__}: {e2})")
-                print(f"  Last resort: single-device float32 (may OOM for large models) …")
+            print(f"  4-bit failed ({type(e).__name__}: {e})")
+            print(f"  Last resort: single-device float32 (may OOM) …")
 
     model = HookedTransformer.from_pretrained(model_name, **extra)
     model.eval()
