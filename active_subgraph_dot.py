@@ -162,6 +162,177 @@ def _estimate_param_billions(name: str) -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Lightweight HuggingFace-native hook runner
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _HFHookedModel:
+    """
+    Drop-in replacement for HookedTransformer that wraps a raw HuggingFace
+    model with native PyTorch forward hooks.
+
+    WHY THIS EXISTS
+    ---------------
+    TransformerLens.from_pretrained() creates a full internal copy of every
+    weight tensor to build its own HookedTransformer.  For an 8B bfloat16
+    model on a 40 GB A100 this means:
+        HF copy on GPU  (16 GB)
+      + TL copy on GPU  (16 GB)
+      + state-dict during einops conversion (16 GB peak)
+      = 48 GB  →  OOM / infinite stall
+
+    This class loads the HF model directly and attaches PyTorch hooks to the
+    exact modules that correspond to TransformerLens hook names, so
+    compute_per_head_scores and compute_magnitude_ratios work unchanged.
+
+    SUPPORTED HOOK NAMES
+    --------------------
+      blocks.{l}.hook_resid_pre   — residual stream entering layer l
+      blocks.{l}.hook_attn_out    — attention output (after o_proj / W_O)
+      blocks.{l}.hook_mlp_out     — MLP / FFN output
+      blocks.{l}.attn.hook_z      — per-head value outputs before W_O
+                                    (shape: [batch, seq, n_heads, d_head])
+    Unrecognised names (e.g. hook_resid_mid) are silently skipped.
+    """
+
+    def __init__(self, hf_model, tokenizer, model_name: str):
+        self._model    = hf_model
+        self._tok      = tokenizer
+
+        c = hf_model.config
+        n_heads  = getattr(c, "num_attention_heads", getattr(c, "n_head",  12))
+        d_model  = getattr(c, "hidden_size",         getattr(c, "n_embd", 768))
+        n_layers = getattr(c, "num_hidden_layers",   getattr(c, "n_layer", 12))
+
+        from types import SimpleNamespace
+        self.cfg = SimpleNamespace(
+            n_layers          = n_layers,
+            n_heads           = n_heads,
+            d_model           = d_model,
+            d_head            = d_model // n_heads,
+            model_name        = model_name,
+            attn_only         = False,
+            parallel_attn_mlp = bool(getattr(c, "parallel_attn_mlp", False)),
+        )
+
+    # ── Interface expected by the rest of the pipeline ────────────────────
+    def parameters(self):
+        return self._model.parameters()
+
+    def eval(self):
+        self._model.eval()
+        return self
+
+    def to(self, *a, **kw):
+        return self   # already placed by load_model; ignore extra moves
+
+    def to_tokens(self, text: str) -> torch.Tensor:
+        return self._tok(text, return_tensors="pt")["input_ids"]
+
+    # ── Module accessors ──────────────────────────────────────────────────
+    def _layers(self):
+        m = self._model
+        if hasattr(m, "model")     and hasattr(m.model,     "layers"): return m.model.layers
+        if hasattr(m, "transformer") and hasattr(m.transformer, "h"):   return m.transformer.h
+        if hasattr(m, "gpt_neox")  and hasattr(m.gpt_neox,  "layers"): return m.gpt_neox.layers
+        raise ValueError(f"Cannot find layer list in {type(m).__name__}")
+
+    @staticmethod
+    def _get_attn(layer):
+        for name in ("self_attn", "attention", "attn"):
+            if hasattr(layer, name): return getattr(layer, name)
+        raise ValueError(f"No attention module in {type(layer).__name__}")
+
+    @staticmethod
+    def _get_mlp(layer):
+        for name in ("mlp", "feed_forward", "ff"):
+            if hasattr(layer, name): return getattr(layer, name)
+        raise ValueError(f"No MLP module in {type(layer).__name__}")
+
+    # ── Hook runner ───────────────────────────────────────────────────────
+    def run_with_hooks(
+        self,
+        tokens:      torch.Tensor,
+        fwd_hooks:   Optional[list] = None,
+        return_type: Optional[str]  = None,
+    ):
+        """
+        Run the model with TransformerLens-style hooks.
+
+        fwd_hooks  list of (hook_name, hook_fn)
+            hook_fn(activation, hook_obj=None) — return value is ignored;
+            hooks are read-only (capture only, no activation patching).
+        return_type  "logits" | None
+        """
+        device = next(self._model.parameters()).device
+        tokens = tokens.to(device)
+        handles: list = []
+
+        if fwd_hooks:
+            layers  = self._layers()
+            n_heads = self.cfg.n_heads
+            d_head  = self.cfg.d_head
+
+            # Build index: (layer_idx, suffix) → hook_fn
+            idx: dict = {}
+            for hname, hfn in fwd_hooks:
+                parts = hname.split(".")
+                if parts[0] != "blocks" or len(parts) < 3:
+                    continue
+                try:
+                    l = int(parts[1])
+                except ValueError:
+                    continue
+                idx[(l, ".".join(parts[2:]))] = hfn
+
+            for (l, suffix), fn in idx.items():
+                if l >= len(layers):
+                    continue
+                layer  = layers[l]
+                attn_m = self._get_attn(layer)
+                mlp_m  = self._get_mlp(layer)
+
+                if suffix == "hook_resid_pre":
+                    def _pre(mod, args, _fn=fn):
+                        x = args[0] if isinstance(args, tuple) else args
+                        _fn(x, None)
+                    handles.append(layer.register_forward_pre_hook(_pre))
+
+                elif suffix == "hook_attn_out":
+                    def _ao(mod, args, out, _fn=fn):
+                        x = out[0] if isinstance(out, tuple) else out
+                        _fn(x, None)
+                    handles.append(attn_m.register_forward_hook(_ao))
+
+                elif suffix == "hook_mlp_out":
+                    def _mo(mod, args, out, _fn=fn):
+                        x = out[0] if isinstance(out, tuple) else out
+                        _fn(x, None)
+                    handles.append(mlp_m.register_forward_hook(_mo))
+
+                elif suffix in ("attn.hook_z", "hook_z"):
+                    # Per-head outputs = input to o_proj before W_O is applied.
+                    # Shape: [batch, seq, n_heads * d_head] → view to [b, s, H, Dh]
+                    o_proj = getattr(attn_m, "o_proj", None)
+                    if o_proj is not None:
+                        def _z(mod, args, _fn=fn, _nh=n_heads, _dh=d_head):
+                            x = args[0] if isinstance(args, tuple) else args
+                            b, s, _ = x.shape
+                            _fn(x.view(b, s, _nh, _dh), None)
+                        handles.append(o_proj.register_forward_pre_hook(_z))
+                # else: silently skip (hook_resid_mid etc. — not used in analysis)
+
+        try:
+            out = self._model(tokens)
+        finally:
+            for h in handles:
+                h.remove()
+
+        if return_type == "logits":
+            return out.logits if hasattr(out, "logits") else out[0]
+        return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Recommended open-source models by parameter scale
 # (GPT-4o is closed-source; these are the nearest open alternatives for
 #  active-subgraph analysis via TransformerLens)
@@ -185,7 +356,28 @@ LARGE_MODEL_PRESETS: dict = {
 
 
 def load_model(model_name: str, device: str = "cuda",
-               hf_token: Optional[str] = None) -> HookedTransformer:
+               hf_token: Optional[str] = None):
+    """
+    Load a model for active-subgraph analysis.
+
+    Returns either a HookedTransformer (preferred) or a _HFHookedModel
+    (fallback).  Both expose the same interface used by compute_per_head_scores,
+    compute_magnitude_ratios, and process_task.
+
+    Loading strategy (tried in order):
+    ─────────────────────────────────
+    A. HF model loaded to **CPU RAM** in bfloat16, then TransformerLens creates
+       its own GPU-resident model by pulling weights from CPU one tensor at a
+       time.  Peak GPU VRAM = one model copy (~16 GB for 8B).
+       (Previous approach loaded HF to GPU first → 3× model VRAM peak → OOM.)
+
+    B. _HFHookedModel: skip TransformerLens entirely, attach native PyTorch
+       hooks directly to the HuggingFace model.  Zero extra VRAM for wrapping.
+       Used when (A) fails OR when bfloat16 does not fit (very large models).
+       For models > 0.75 × VRAM: HF loads in 4-bit NF4 for strategy B.
+
+    C. CPU fallback for small models (GPT-2 etc.) when no CUDA is available.
+    """
     resolved = (hf_token
                 or os.environ.get("HF_TOKEN")
                 or os.environ.get("HUGGING_FACE_HUB_TOKEN"))
@@ -202,95 +394,97 @@ def load_model(model_name: str, device: str = "cuda",
     if device == "cuda":
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        vram_gb  = torch.cuda.get_device_properties(0).total_memory / 1e9
-        param_b  = _estimate_param_billions(model_name)
-        bf16_gb  = param_b * 2.0   # bfloat16 = 2 bytes / parameter
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+        param_b = _estimate_param_billions(model_name)
+        bf16_gb = param_b * 2.0   # bfloat16 = 2 bytes / param
 
-        print(f"  GPU VRAM: {vram_gb:.0f} GB  |  model ~{param_b:.0f}B params "
-              f"({bf16_gb:.0f} GB in bfloat16)")
+        print(f"  GPU: {vram_gb:.0f} GB VRAM  |  "
+              f"model ~{param_b:.0f}B params ({bf16_gb:.0f} GB bfloat16)")
 
-        # ── Strategy A: bfloat16 (preferred) ──────────────────────────────────
-        # Use plain bfloat16 whenever the model fits in VRAM.
-        # This avoids all BitsAndBytes/Params4bit edge cases with TransformerLens
-        # (4-bit quantization causes TransformerLens to hang during cls(cfg)
-        # construction because it tries to materialise Params4bit tensors into
-        # newly-allocated float32 Parameters).
-        #
-        # Rule of thumb: bfloat16 fits if  param_b × 2 GB < 0.75 × VRAM GB
-        # i.e. a 8B model needs 16 GB; an A100-80G has 60 GB free budget → OK.
+        # ── Strategy A: bfloat16 via TransformerLens (CPU-first load) ─────────
+        # HF model loads to CPU RAM; TL creates its own GPU model and copies
+        # weights from CPU tensors one-at-a-time via load_state_dict.
+        # Peak GPU = one model only (~bf16_gb GB).
         if bf16_gb < vram_gb * 0.75:
-            print(f"  Loading in bfloat16 (fits in VRAM) …")
+            print(f"  [A] Loading HF model to CPU RAM (bfloat16) …")
+            hf_model_a = None
             try:
-                hf_model = AutoModelForCausalLM.from_pretrained(
+                hf_model_a = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    torch_dtype=torch.bfloat16,
+                    low_cpu_mem_usage=True,
+                    # No device_map → stays on CPU by default
+                )
+                tokenizer_a = AutoTokenizer.from_pretrained(model_name)
+                hf_model_a.eval()
+
+                print(f"  [A] Wrapping with TransformerLens (CPU→GPU) …")
+                tl_model = HookedTransformer.from_pretrained(
+                    model_name,
+                    hf_model=hf_model_a,
+                    tokenizer=tokenizer_a,
+                    dtype=torch.bfloat16,
+                    device="cuda",
+                    move_to_device=False,
+                    **extra,
+                )
+                del hf_model_a
+                torch.cuda.empty_cache()
+                print(f"  [A] Loaded {model_name} in bfloat16 via TransformerLens.")
+                return tl_model
+
+            except Exception as e:
+                print(f"  [A] TransformerLens wrapping failed "
+                      f"({type(e).__name__}: {e})")
+                print(f"  [A] → falling back to native HF hooks (Strategy B).")
+                if hf_model_a is not None:
+                    del hf_model_a
+                torch.cuda.empty_cache()
+
+        # ── Strategy B: native HuggingFace hooks (_HFHookedModel) ─────────────
+        # Skips TransformerLens wrapping entirely — zero extra VRAM overhead.
+        # Uses PyTorch register_forward_hook / register_forward_pre_hook to
+        # capture activations at the same points as TransformerLens hooks.
+        print(f"  [B] Loading HF model with native hooks (no TL wrapping) …")
+        try:
+            if bf16_gb < vram_gb * 0.88:
+                # bfloat16 fits — plain loading, best quality
+                hf_model_b = AutoModelForCausalLM.from_pretrained(
                     model_name,
                     torch_dtype=torch.bfloat16,
                     device_map="auto",
                     low_cpu_mem_usage=True,
                 )
-                tokenizer = AutoTokenizer.from_pretrained(model_name)
-                hf_model.eval()
-                print(f"  HF model ready.  Wrapping with TransformerLens …")
-                model = HookedTransformer.from_pretrained(
-                    model_name,
-                    hf_model=hf_model,
-                    tokenizer=tokenizer,
-                    dtype=torch.bfloat16,   # keep TL params in bfloat16, not float32
-                    move_to_device=False,   # already device-mapped by HF
-                    **extra,
+            else:
+                # Too large for bfloat16 — 4-bit NF4
+                from transformers import BitsAndBytesConfig
+                bnb = BitsAndBytesConfig(
+                    load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
                 )
-                print(f"  Loaded {model_name} in bfloat16.")
-                return model
-            except Exception as e:
-                print(f"  bfloat16 failed ({type(e).__name__}: {e})")
-                print(f"  Falling through to 4-bit …")
+                gpu_mem = f"{max(8, int(vram_gb * 0.88))}GiB"
+                hf_model_b = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    quantization_config=bnb,
+                    device_map="auto",
+                    low_cpu_mem_usage=True,
+                    torch_dtype=torch.bfloat16,
+                    max_memory={0: gpu_mem, "cpu": "60GiB"},
+                )
+            tokenizer_b = AutoTokenizer.from_pretrained(model_name)
+            hf_model_b.eval()
+            wrapped = _HFHookedModel(hf_model_b, tokenizer_b, model_name)
+            print(f"  [B] Loaded {model_name} via native HF hooks.")
+            return wrapped
 
-        # ── Strategy B: 4-bit NF4 (for models too large for bfloat16) ─────────
-        # Two-step pattern is required:
-        #   1. AutoModelForCausalLM.from_pretrained(quantization_config=bnb)
-        #      → hf_model.config.quantization_config is populated
-        #   2. HookedTransformer.from_pretrained(hf_model=hf_model)
-        #      → TL reads that config → cfg.load_in_4bit=True
-        #      → convert_llama_weights() skips einops.rearrange on Params4bit ✓
-        # Passing quantization_config directly to HookedTransformer.from_pretrained
-        # bypasses this and causes the 15% crash (cfg.load_in_4bit stays False).
-        try:
-            from transformers import BitsAndBytesConfig
-            bnb = BitsAndBytesConfig(
-                load_in_4bit=True, bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True,
-            )
-            gpu_mem = f"{max(8, int(vram_gb * 0.88))}GiB"
-            print(f"  Loading with 4-bit NF4 (budget {gpu_mem}) …")
-
-            hf_model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                quantization_config=bnb,
-                device_map="auto",
-                low_cpu_mem_usage=True,
-                torch_dtype=torch.bfloat16,
-                max_memory={0: gpu_mem, "cpu": "60GiB"},
-            )
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            hf_model.eval()
-            print(f"  HF model ready.  Wrapping with TransformerLens …")
-            model = HookedTransformer.from_pretrained(
-                model_name,
-                hf_model=hf_model,
-                tokenizer=tokenizer,
-                move_to_device=False,
-                **extra,
-            )
-            print(f"  Loaded {model_name} with 4-bit NF4.")
-            return model
         except Exception as e:
-            print(f"  4-bit failed ({type(e).__name__}: {e})")
-            print(f"  Last resort: single-device float32 (may OOM) …")
+            print(f"  [B] Native HF loading failed ({type(e).__name__}: {e})")
+            torch.cuda.empty_cache()
 
+    # ── Strategy C: CPU via TransformerLens (small models / no GPU) ───────────
     model = HookedTransformer.from_pretrained(model_name, **extra)
     model.eval()
-    if device == "cuda":
-        model = model.to(device)
     return model
 
 
