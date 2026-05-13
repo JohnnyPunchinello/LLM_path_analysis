@@ -455,22 +455,56 @@ def load_model(model_name: str, device: str = "cuda",
                     low_cpu_mem_usage=True,
                 )
             else:
-                # Too large for bfloat16 — 4-bit NF4
+                # Too large for bfloat16 — 4-bit NF4.
+                # IMPORTANT: do NOT pass torch_dtype alongside quantization_config.
+                # In many HF versions, torch_dtype causes bfloat16 loading to win
+                # over the quantization_config, defeating 4-bit entirely.
                 from transformers import BitsAndBytesConfig
                 bnb = BitsAndBytesConfig(
                     load_in_4bit=True, bnb_4bit_quant_type="nf4",
                     bnb_4bit_compute_dtype=torch.bfloat16,
                     bnb_4bit_use_double_quant=True,
                 )
-                gpu_mem = f"{max(8, int(vram_gb * 0.88))}GiB"
-                hf_model_b = AutoModelForCausalLM.from_pretrained(
-                    model_name,
-                    quantization_config=bnb,
-                    device_map="auto",
-                    low_cpu_mem_usage=True,
-                    torch_dtype=torch.bfloat16,
-                    max_memory={0: gpu_mem, "cpu": "60GiB"},
-                )
+                # Expandable segments reduce fragmentation during quantization
+                os.environ.setdefault("PYTORCH_ALLOC_CONF",
+                                      "expandable_segments:True")
+
+                # Convert from decimal GB (vram_gb) to GiB for max_memory.
+                # total_memory is in bytes; /2^30 gives GiB.
+                vram_gib = (torch.cuda.get_device_properties(0).total_memory
+                            / (1024 ** 3))
+                nf4_gib = param_b * 0.5 / 1.073741824  # approx 4-bit GiB
+                print(f"  [B] 4-bit NF4 (~{nf4_gib:.0f} GiB) on "
+                      f"{vram_gib:.0f} GiB GPU …")
+
+                def _load_4bit(max_mem):
+                    return AutoModelForCausalLM.from_pretrained(
+                        model_name,
+                        quantization_config=bnb,
+                        device_map="auto",
+                        low_cpu_mem_usage=True,
+                        max_memory=max_mem,
+                    )
+
+                try:
+                    # Attempt 1: all on GPU.  max_memory leaves 10% headroom
+                    # for the CUDA context and PyTorch allocator overhead.
+                    hf_model_b = _load_4bit(
+                        {0: f"{int(vram_gib * 0.90)}GiB"}
+                    )
+                except torch.cuda.OutOfMemoryError:
+                    torch.cuda.empty_cache()
+                    # Attempt 2: force a GPU quota BELOW the 4-bit model size
+                    # so device_map sends the overflow layers directly to CPU
+                    # RAM at load time — they never touch the GPU allocator.
+                    # This is safe even if quantization fails (bfloat16 path):
+                    # 20 GiB quota ≈ 15% of 130 GiB bfloat16.
+                    print(f"  [B] OOM at full GPU quota — retrying with "
+                          f"partial CPU offload (inference will be slower) …")
+                    hf_model_b = _load_4bit(
+                        {0: "20GiB", "cpu": "200GiB"}
+                    )
+
             tokenizer_b = AutoTokenizer.from_pretrained(model_name)
             hf_model_b.eval()
             wrapped = _HFHookedModel(hf_model_b, tokenizer_b, model_name)
