@@ -228,6 +228,10 @@ class _HFHookedModel:
     def to_tokens(self, text: str) -> torch.Tensor:
         return self._tok(text, return_tensors="pt")["input_ids"]
 
+    def __call__(self, tokens, return_type=None):
+        """Allow model(tokens, return_type=...) — delegates to run_with_hooks."""
+        return self.run_with_hooks(tokens, fwd_hooks=None, return_type=return_type)
+
     # ── Module accessors ──────────────────────────────────────────────────
     def _layers(self):
         m = self._model
@@ -493,15 +497,16 @@ def load_model(model_name: str, device: str = "cuda",
                     print(f"  [B] WARNING: only {free_gib:.1f} GiB free — "
                           f"restart runtime for a clean GPU.")
 
-                # Check whether this BnB version supports 4-bit + CPU offload
+                # Check whether this BnB version supports 4-bit + CPU offload.
+                # Requires BnB >= 0.43 (added _is_hf_initialized / stable CPU offload).
+                # Use version-string comparison — signature introspection is unreliable
+                # across BnB refactors (e.g. 0.49.x changed internal class layout).
                 try:
-                    import bitsandbytes.nn as _bnb_nn, inspect as _insp
-                    _bnb_ok = ("_is_hf_initialized" in
-                               _insp.signature(
-                                   _bnb_nn.Params4bit.__new__
-                               ).parameters)
                     import bitsandbytes as _bnb_mod
                     _bnb_ver = _bnb_mod.__version__
+                    _bnb_ok = (
+                        tuple(int(x) for x in _bnb_ver.split(".")[:2]) >= (0, 43)
+                    )
                 except Exception:
                     _bnb_ok, _bnb_ver = False, "unknown"
 
