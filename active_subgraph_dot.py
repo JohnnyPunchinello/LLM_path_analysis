@@ -456,15 +456,9 @@ def load_model(model_name: str, device: str = "cuda",
                 )
             else:
                 # Too large for bfloat16 — 4-bit NF4.
-                # IMPORTANT: do NOT pass torch_dtype alongside quantization_config.
-                # In many HF versions, torch_dtype causes bfloat16 loading to win
-                # over the quantization_config, defeating 4-bit entirely.
+                # Note: do NOT pass torch_dtype alongside quantization_config;
+                # in many HF versions that causes bfloat16 to win.
                 from transformers import BitsAndBytesConfig
-                bnb = BitsAndBytesConfig(
-                    load_in_4bit=True, bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.bfloat16,
-                    bnb_4bit_use_double_quant=True,
-                )
                 # Expandable segments reduce fragmentation during quantization
                 os.environ.setdefault("PYTORCH_ALLOC_CONF",
                                       "expandable_segments:True")
@@ -477,6 +471,20 @@ def load_model(model_name: str, device: str = "cuda",
                 print(f"  [B] 4-bit NF4 (~{nf4_gib:.0f} GiB) on "
                       f"{vram_gib:.0f} GiB GPU …")
 
+                # llm_int8_enable_fp32_cpu_offload=True has two jobs:
+                # (a) it is REQUIRED when device_map puts any layer on CPU
+                #     (otherwise BnB raises ValueError); and
+                # (b) in some HF/accelerate versions, the presence of a CPU
+                #     entry in max_memory is what switches accelerate onto the
+                #     loading path that actually applies BnB quantization —
+                #     an all-GPU plan can bypass it and load bfloat16 instead.
+                bnb = BitsAndBytesConfig(
+                    load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=True,
+                    llm_int8_enable_fp32_cpu_offload=True,
+                )
+
                 def _load_4bit(max_mem):
                     return AutoModelForCausalLM.from_pretrained(
                         model_name,
@@ -486,23 +494,29 @@ def load_model(model_name: str, device: str = "cuda",
                         max_memory=max_mem,
                     )
 
+                # Attempt 1: all-GPU target.  The tiny "cpu": "5GiB" entry is
+                # intentional: its presence flips accelerate onto the BnB-
+                # aware loading path so quantisation is actually applied.
+                # Since nf4_gib << gpu_q1, device_map will still place every
+                # layer on GPU — no CPU layers during inference.
+                gpu_q1 = int(vram_gib * 0.88)
                 try:
-                    # Attempt 1: all on GPU.  max_memory leaves 10% headroom
-                    # for the CUDA context and PyTorch allocator overhead.
                     hf_model_b = _load_4bit(
-                        {0: f"{int(vram_gib * 0.90)}GiB"}
+                        {0: f"{gpu_q1}GiB", "cpu": "5GiB"}
                     )
-                except torch.cuda.OutOfMemoryError:
-                    torch.cuda.empty_cache()
-                    # Attempt 2: force a GPU quota BELOW the 4-bit model size
-                    # so device_map sends the overflow layers directly to CPU
-                    # RAM at load time — they never touch the GPU allocator.
-                    # This is safe even if quantization fails (bfloat16 path):
-                    # 20 GiB quota ≈ 15% of 130 GiB bfloat16.
-                    print(f"  [B] OOM at full GPU quota — retrying with "
-                          f"partial CPU offload (inference will be slower) …")
+                except Exception:
+                    import gc
+                    torch.cuda.empty_cache(); gc.collect()
+                    # Attempt 2: GPU quota below the 4-bit model size forces
+                    # device_map to plan some layers on CPU (fp32).  Those
+                    # GPU-assigned layers get proper BnB quantization; the
+                    # CPU-assigned ones land as fp32.  Inference is slower for
+                    # the CPU layers but the model loads without OOM.
+                    gpu_q2 = max(8, int(nf4_gib * 0.85))
+                    print(f"  [B] Attempt 1 failed → retrying: "
+                          f"{gpu_q2} GiB GPU + CPU overflow …")
                     hf_model_b = _load_4bit(
-                        {0: "20GiB", "cpu": "200GiB"}
+                        {0: f"{gpu_q2}GiB", "cpu": "180GiB"}
                     )
 
             tokenizer_b = AutoTokenizer.from_pretrained(model_name)
