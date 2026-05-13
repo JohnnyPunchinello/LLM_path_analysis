@@ -488,6 +488,30 @@ def load_model(model_name: str, device: str = "cuda",
                           f"restart Colab runtime for a clean GPU before "
                           f"loading a {param_b:.0f}B model.")
 
+                # ── bitsandbytes compatibility patch ──────────────────────
+                # Newer transformers passes _is_hf_initialized to
+                # Params4bit.__new__(), but bitsandbytes < 0.43 doesn't
+                # accept it → TypeError after 100 % of weights are loaded.
+                # This patch silently drops the kwarg so old BnB works with
+                # new transformers.  Safe: the missing flag just means old
+                # BnB treats every Params4bit as not yet HF-initialised,
+                # which matches the original pre-0.43 behaviour.
+                try:
+                    import bitsandbytes.nn as _bnb_nn, inspect as _insp
+                    _p4b_params = (
+                        _insp.signature(_bnb_nn.Params4bit.__new__).parameters
+                    )
+                    if "_is_hf_initialized" not in _p4b_params:
+                        _orig_new = _bnb_nn.Params4bit.__new__
+                        def _compat_new(cls, *a, **kw):
+                            kw.pop("_is_hf_initialized", None)
+                            return _orig_new(cls, *a, **kw)
+                        _bnb_nn.Params4bit.__new__ = staticmethod(_compat_new)
+                        print("  [B] Applied BnB compat patch "
+                              "(_is_hf_initialized).")
+                except Exception as _pe:
+                    print(f"  [B] BnB patch skipped ({_pe}).")
+
                 # llm_int8_enable_fp32_cpu_offload is required when any layer
                 # is dispatched to CPU (raises ValueError without it).
                 bnb = BitsAndBytesConfig(
@@ -506,12 +530,20 @@ def load_model(model_name: str, device: str = "cuda",
                         max_memory={0: f"{gq}GiB", "cpu": "180GiB"},
                     )
 
-                # GPU quota: cap at 95 % of nf4_gib to GUARANTEE the quota
-                # is below the 4-bit model size (forcing some CPU layers and
-                # thus the correct BnB loading path), but also cap at 80 % of
-                # currently-free GPU so we don't OOM from pre-existing usage.
-                gpu_q = min(max(8, int(nf4_gib * 0.95)),
-                            max(8, int(free_gib * 0.80)))
+                # GPU quota — three constraints must all be satisfied:
+                # (a) < nf4_gib: forces device_map to plan CPU layers, which
+                #     activates the BnB-quantizing accelerate loading path.
+                # (b) ≤ 80 % of currently-free GPU: avoid OOM from pre-
+                #     existing allocations (other loaded models, etc.).
+                # (c) ≤ free_gib / 4.2: if BnB quantization is bypassed and
+                #     the model loads in bfloat16, the GPU usage is 4× the
+                #     4-bit quota (bfloat16 = 2 bytes vs 0.5 bytes per param).
+                #     This cap ensures the bfloat16 size still fits on GPU.
+                gpu_q = min(
+                    max(8, int(nf4_gib * 0.95)),   # (a)
+                    max(8, int(free_gib * 0.80)),   # (b)
+                    max(8, int(free_gib / 4.2)),    # (c)
+                )
                 print(f"  [B] GPU quota {gpu_q} GiB "
                       f"(forces BnB quantization path) …")
                 try:
@@ -534,6 +566,19 @@ def load_model(model_name: str, device: str = "cuda",
             torch.cuda.empty_cache()
 
     # ── Strategy C: CPU via TransformerLens (small models / no GPU) ───────────
+    # Only attempt if the model is small enough to load on CPU (< 30 GB
+    # bfloat16). For large models all GPU strategies have already been tried.
+    if device == "cuda":
+        param_b_c = _estimate_param_billions(model_name)
+        bf16_gb_c = param_b_c * 2.0
+        if bf16_gb_c > 30:
+            raise RuntimeError(
+                f"{model_name} ({bf16_gb_c:.0f} GB bfloat16) could not be "
+                f"loaded via any GPU strategy and is too large for CPU. "
+                f"Check that bitsandbytes >= 0.43 is installed "
+                f"(run: !pip install -qU bitsandbytes) and restart the "
+                f"Colab runtime."
+            )
     model = HookedTransformer.from_pretrained(model_name, **extra)
     model.eval()
     return model
