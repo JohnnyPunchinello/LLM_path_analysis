@@ -456,28 +456,40 @@ def load_model(model_name: str, device: str = "cuda",
                 )
             else:
                 # Too large for bfloat16 — 4-bit NF4.
-                # Note: do NOT pass torch_dtype alongside quantization_config;
-                # in many HF versions that causes bfloat16 to win.
+                # Critical insight (confirmed across three failed attempts):
+                # when max_memory gives device_map a GPU quota >= nf4_gib,
+                # accelerate plans ALL layers on GPU and bypasses BnB
+                # quantization → model loads in bfloat16 → OOM at ~60%
+                # (60 % × 130 GiB ≈ 78 GiB).  When the quota is BELOW
+                # nf4_gib, device_map must plan some layers on CPU, which
+                # forces the accelerate loading path that actually applies
+                # BnB quantization for the GPU-assigned layers.
+                # GPU layers  → 4-bit NF4 (fast inference).
+                # CPU overflow → fp32   (slower but small fraction).
                 from transformers import BitsAndBytesConfig
-                # Expandable segments reduce fragmentation during quantization
+                import gc
                 os.environ.setdefault("PYTORCH_ALLOC_CONF",
                                       "expandable_segments:True")
 
-                # Convert from decimal GB (vram_gb) to GiB for max_memory.
-                # total_memory is in bytes; /2^30 gives GiB.
                 vram_gib = (torch.cuda.get_device_properties(0).total_memory
                             / (1024 ** 3))
+                # Free GPU memory right now — relevant if a previous model or
+                # failed load is still occupying the GPU.
+                free_gib = ((torch.cuda.get_device_properties(0).total_memory
+                             - torch.cuda.memory_allocated(0))
+                            / (1024 ** 3))
                 nf4_gib = param_b * 0.5 / 1.073741824  # approx 4-bit GiB
-                print(f"  [B] 4-bit NF4 (~{nf4_gib:.0f} GiB) on "
-                      f"{vram_gib:.0f} GiB GPU …")
 
-                # llm_int8_enable_fp32_cpu_offload=True has two jobs:
-                # (a) it is REQUIRED when device_map puts any layer on CPU
-                #     (otherwise BnB raises ValueError); and
-                # (b) in some HF/accelerate versions, the presence of a CPU
-                #     entry in max_memory is what switches accelerate onto the
-                #     loading path that actually applies BnB quantization —
-                #     an all-GPU plan can bypass it and load bfloat16 instead.
+                print(f"  [B] 4-bit NF4 (~{nf4_gib:.0f} GiB); "
+                      f"GPU {free_gib:.0f}/{vram_gib:.0f} GiB free …")
+
+                if free_gib < nf4_gib * 1.1:
+                    print(f"  [B] WARNING: only {free_gib:.1f} GiB free — "
+                          f"restart Colab runtime for a clean GPU before "
+                          f"loading a {param_b:.0f}B model.")
+
+                # llm_int8_enable_fp32_cpu_offload is required when any layer
+                # is dispatched to CPU (raises ValueError without it).
                 bnb = BitsAndBytesConfig(
                     load_in_4bit=True, bnb_4bit_quant_type="nf4",
                     bnb_4bit_compute_dtype=torch.bfloat16,
@@ -485,39 +497,31 @@ def load_model(model_name: str, device: str = "cuda",
                     llm_int8_enable_fp32_cpu_offload=True,
                 )
 
-                def _load_4bit(max_mem):
+                def _load_4bit(gq):
                     return AutoModelForCausalLM.from_pretrained(
                         model_name,
                         quantization_config=bnb,
                         device_map="auto",
                         low_cpu_mem_usage=True,
-                        max_memory=max_mem,
+                        max_memory={0: f"{gq}GiB", "cpu": "180GiB"},
                     )
 
-                # Attempt 1: all-GPU target.  The tiny "cpu": "5GiB" entry is
-                # intentional: its presence flips accelerate onto the BnB-
-                # aware loading path so quantisation is actually applied.
-                # Since nf4_gib << gpu_q1, device_map will still place every
-                # layer on GPU — no CPU layers during inference.
-                gpu_q1 = int(vram_gib * 0.88)
+                # GPU quota: cap at 95 % of nf4_gib to GUARANTEE the quota
+                # is below the 4-bit model size (forcing some CPU layers and
+                # thus the correct BnB loading path), but also cap at 80 % of
+                # currently-free GPU so we don't OOM from pre-existing usage.
+                gpu_q = min(max(8, int(nf4_gib * 0.95)),
+                            max(8, int(free_gib * 0.80)))
+                print(f"  [B] GPU quota {gpu_q} GiB "
+                      f"(forces BnB quantization path) …")
                 try:
-                    hf_model_b = _load_4bit(
-                        {0: f"{gpu_q1}GiB", "cpu": "5GiB"}
-                    )
-                except Exception:
-                    import gc
-                    torch.cuda.empty_cache(); gc.collect()
-                    # Attempt 2: GPU quota below the 4-bit model size forces
-                    # device_map to plan some layers on CPU (fp32).  Those
-                    # GPU-assigned layers get proper BnB quantization; the
-                    # CPU-assigned ones land as fp32.  Inference is slower for
-                    # the CPU layers but the model loads without OOM.
-                    gpu_q2 = max(8, int(nf4_gib * 0.85))
-                    print(f"  [B] Attempt 1 failed → retrying: "
-                          f"{gpu_q2} GiB GPU + CPU overflow …")
-                    hf_model_b = _load_4bit(
-                        {0: f"{gpu_q2}GiB", "cpu": "180GiB"}
-                    )
+                    hf_model_b = _load_4bit(gpu_q)
+                except torch.cuda.OutOfMemoryError:
+                    gc.collect(); torch.cuda.empty_cache(); gc.collect()
+                    gpu_q2 = max(4, gpu_q // 2)
+                    print(f"  [B] OOM at {gpu_q} GiB — retrying with "
+                          f"{gpu_q2} GiB. Restart runtime if this fails.")
+                    hf_model_b = _load_4bit(gpu_q2)
 
             tokenizer_b = AutoTokenizer.from_pretrained(model_name)
             hf_model_b.eval()
