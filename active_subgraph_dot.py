@@ -296,21 +296,32 @@ class _HFHookedModel:
                 mlp_m  = self._get_mlp(layer)
 
                 if suffix == "hook_resid_pre":
+                    # Pre-hook: return modified args tuple to patch the input.
+                    # This is critical for the _anchor hook in compute_per_head_scores,
+                    # which injects a requires_grad=True tensor so that activations
+                    # later in the graph can call retain_grad() and backward() works.
                     def _pre(mod, args, _fn=fn):
                         x = args[0] if isinstance(args, tuple) else args
-                        _fn(x, None)
+                        result = _fn(x, None)
+                        if result is not None:
+                            # Return modified tuple; PyTorch replaces module input.
+                            return (result,) + args[1:]
                     handles.append(layer.register_forward_pre_hook(_pre))
 
                 elif suffix == "hook_attn_out":
                     def _ao(mod, args, out, _fn=fn):
                         x = out[0] if isinstance(out, tuple) else out
-                        _fn(x, None)
+                        result = _fn(x, None)
+                        if result is not None:
+                            return (result,) + out[1:] if isinstance(out, tuple) else result
                     handles.append(attn_m.register_forward_hook(_ao))
 
                 elif suffix == "hook_mlp_out":
                     def _mo(mod, args, out, _fn=fn):
                         x = out[0] if isinstance(out, tuple) else out
-                        _fn(x, None)
+                        result = _fn(x, None)
+                        if result is not None:
+                            return (result,) + out[1:] if isinstance(out, tuple) else result
                     handles.append(mlp_m.register_forward_hook(_mo))
 
                 elif suffix in ("attn.hook_z", "hook_z"):
@@ -321,7 +332,11 @@ class _HFHookedModel:
                         def _z(mod, args, _fn=fn, _nh=n_heads, _dh=d_head):
                             x = args[0] if isinstance(args, tuple) else args
                             b, s, _ = x.shape
-                            _fn(x.view(b, s, _nh, _dh), None)
+                            viewed = x.view(b, s, _nh, _dh)
+                            result = _fn(viewed, None)
+                            if result is not None:
+                                # Reshape back to flat head dim before returning.
+                                return (result.view(b, s, _nh * _dh),) + args[1:]
                         handles.append(o_proj.register_forward_pre_hook(_z))
                 # else: silently skip (hook_resid_mid etc. — not used in analysis)
 
@@ -1498,14 +1513,129 @@ def build_compact_dot(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Compact Mermaid generator  (large-model .md — one node per layer)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_compact_mermaid(
+    model_name:    str,
+    n_layers:      int,
+    n_heads:       int,
+    head_scores:   np.ndarray,
+    mlp_scores:    np.ndarray,
+    active_attn:   List[bool],
+    active_mlp:    List[bool],
+    attn_ratios:   np.ndarray,
+    mlp_ratios:    np.ndarray,
+    task_text:     str,
+    task_label:    str,
+    mass_coverage: float,
+    epsilon:       float,
+    k_edges:       int,
+    is_attn_only:  bool = False,
+    head_threshold: float = 0.15,
+    mag_threshold:  float = MAG_THRESHOLD,
+    layer_window:   Optional[Tuple[int, int]] = None,
+    **_,
+) -> str:
+    """
+    Compact Mermaid flowchart for large models (> 40 layers).
+
+    One node per layer — no individual head ellipses.  Each node label shows
+    the magnitude ratio and active/inactive status for attn and FFN.  Colour:
+      purple  = both active   red = attn-only   blue = FFN-only   grey = neither
+    """
+    wrapped = textwrap.shorten(task_text, width=70, placeholder=" ...")
+
+    # Which layers to draw
+    gap_before: Optional[int] = None   # position in layers_to_show before which gap goes
+    if layer_window is not None:
+        fn, ln = layer_window
+        if fn + ln < n_layers:
+            layers_to_show = list(range(fn)) + list(range(n_layers - ln, n_layers))
+            gap_before = fn   # insert gap node before position fn in layers_to_show
+        else:
+            layers_to_show = list(range(n_layers))
+    else:
+        layers_to_show = list(range(n_layers))
+
+    n_act_a = sum(active_attn[l] for l in layers_to_show)
+    n_act_m = (sum(active_mlp[l] for l in layers_to_show)
+               if not is_attn_only else 0)
+
+    lines: List[str] = [
+        "---",
+        f'title: "{task_label} | {model_name} | {n_layers}L×{n_heads}H | '
+        f'attn {n_act_a}/{n_layers} active | ffn {n_act_m}/{n_layers} active"',
+        "---",
+        "%%{ init: { 'theme': 'base', 'themeVariables': {",
+        "    'background': '#ffffff', 'primaryColor': '#f4f4f4',",
+        "    'lineColor': '#555555', 'fontSize': '11px'",
+        "} } }%%",
+        "flowchart TB",
+        "",
+        "  classDef act_a fill:#d62728,color:#fff,stroke:#9a1a1a,stroke-width:1.5px",
+        "  classDef act_m fill:#1f77b4,color:#fff,stroke:#1a5276,stroke-width:1.5px",
+        "  classDef act_b fill:#7b1fa2,color:#fff,stroke:#4a0072,stroke-width:1.5px",
+        "  classDef inact fill:#f4f4f4,color:#aaa,stroke:#cccccc,stroke-width:0.8px",
+        "  classDef io    fill:#e8f5e9,color:#1b5e20,stroke:#388e3c,stroke-width:1.5px",
+        "  classDef gap   fill:#fff,color:#777,stroke:#ccc,stroke-width:0.5px",
+        "",
+        f'  EMB["🔷 Embedding\\n{wrapped}"]:::io',
+        "",
+    ]
+
+    prev = "EMB"
+    for pos, l in enumerate(layers_to_show):
+        # Gap placeholder between first-N and last-M layers
+        if gap_before is not None and pos == gap_before:
+            lines.append('  GAP["… middle layers …"]:::gap')
+            lines.append(f"  {prev} --> GAP")
+            prev = "GAP"
+
+        a_act = active_attn[l]
+        m_act = active_mlp[l] if not is_attn_only else False
+        a_sym = "✓" if a_act else "✗"
+        m_sym = "✓" if m_act else "✗"
+
+        if not is_attn_only:
+            lbl = f"L{l} | A {a_sym}{attn_ratios[l]:.2f} | F {m_sym}{mlp_ratios[l]:.2f}"
+        else:
+            lbl = f"L{l} | A {a_sym}{attn_ratios[l]:.2f}"
+
+        cls = ("act_b" if (a_act and m_act)
+               else "act_a" if a_act
+               else "act_m" if m_act
+               else "inact")
+
+        nid = f"L{l}"
+        lines.append(f'  {nid}["{lbl}"]:::{cls}')
+        lines.append(f"  {prev} --> {nid}")
+        prev = nid
+
+    lines += [
+        "",
+        '  OUT["🔶 Logits / Output"]:::io',
+        f"  {prev} --> OUT",
+        "",
+        f"  %% Stats: k={k_edges}  epsilon={epsilon:.5f}  coverage={mass_coverage:.0%}",
+        f"  %% threshold={mag_threshold}  "
+        f"active_attn={n_act_a}/{n_layers}  active_ffn={n_act_m}/{n_layers}",
+    ]
+    return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Rendering helper (SVG + PNG)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _render_dot(dot_str: str, out_stem: str) -> None:
+def _render_dot(dot_str: str, out_stem: str) -> bool:
     """
     Render DOT source to both SVG and PNG via subprocess with a hard timeout.
     Avoids the graphviz Python package, which calls dot with no timeout and
     hangs indefinitely on complex clustered graphs.
+
+    Returns True if PNG was rendered successfully, False on timeout/error
+    (so callers can fall back to the matplotlib heatmap).
     """
     import subprocess, shutil
 
@@ -1519,11 +1649,12 @@ def _render_dot(dot_str: str, out_stem: str) -> None:
     if not dot_bin:
         print("  PNG/SVG skipped — dot binary not found. "
               "Install: sudo apt install graphviz  OR  brew install graphviz")
-        return
+        return False
 
     dot_path = Path(f"{out_stem}.dot")
-    _RENDER_TIMEOUT = 90   # seconds per format (large models with many layers need more time)
+    _RENDER_TIMEOUT = 90   # seconds per format
 
+    png_ok = False
     for fmt in ("svg", "png"):
         out = Path(f"{out_stem}.{fmt}")
         try:
@@ -1533,13 +1664,73 @@ def _render_dot(dot_str: str, out_stem: str) -> None:
             )
             if result.returncode == 0:
                 print(f"  {fmt.upper():<5}  → {out}")
+                if fmt == "png":
+                    png_ok = True
             else:
                 print(f"  {fmt.upper()} failed: {result.stderr.strip()[:200]}")
         except subprocess.TimeoutExpired:
             print(f"  {fmt.upper()} skipped — dot layout timed out "
-                  f"(>{_RENDER_TIMEOUT}s). .dot and .md files are still valid.")
+                  f"(>{_RENDER_TIMEOUT}s). Falling back to heatmap PNG.")
         except Exception as exc:
             print(f"  {fmt.upper()} error: {exc}")
+    return png_ok
+
+
+def _render_heatmap(
+    attn_ratios:  np.ndarray,
+    mlp_ratios:   np.ndarray,
+    active_attn:  List[bool],
+    active_mlp:   List[bool],
+    model_name:   str,
+    task_label:   str,
+    mag_threshold: float,
+    out_path:     str,
+) -> None:
+    """
+    Fallback PNG when DOT layout times out: a two-panel bar chart of
+    magnitude ratios per layer, generated via matplotlib.
+
+    Red bars  = active attention layer  (ratio ≥ threshold)
+    Blue bars = active FFN layer
+    Grey bars = inactive block
+    Dashed line = mag_threshold
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        n_layers = len(attn_ratios)
+        xs = list(range(n_layers))
+
+        fig, axes = plt.subplots(2, 1,
+                                 figsize=(max(14, n_layers * 0.22), 5),
+                                 sharex=True)
+        fig.suptitle(f"{task_label}  |  {model_name}", fontsize=11)
+
+        for ax, ratios, active, ylabel, hi_col in [
+            (axes[0], attn_ratios, active_attn, "Attn ratio", "#d62728"),
+            (axes[1], mlp_ratios,  active_mlp,  "FFN ratio",  "#1f77b4"),
+        ]:
+            colors = [hi_col if a else "#cccccc" for a in active]
+            ax.bar(xs, ratios, color=colors, edgecolor="none", width=0.8)
+            ax.axhline(mag_threshold, color="#333333", linewidth=1.0,
+                       linestyle="--", label=f"threshold={mag_threshold}")
+            ax.set_ylabel(ylabel, fontsize=9)
+            ax.tick_params(labelsize=7)
+            ax.legend(fontsize=7, loc="upper left")
+
+        tick_step = max(1, n_layers // 20)
+        axes[1].set_xlabel("Layer", fontsize=9)
+        axes[1].set_xticks(range(0, n_layers, tick_step))
+        axes[1].set_xticklabels(range(0, n_layers, tick_step), fontsize=7)
+
+        plt.tight_layout()
+        plt.savefig(out_path, dpi=120, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  Heatmap  → {out_path}")
+    except Exception as exc:
+        print(f"  Heatmap skipped: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1834,24 +2025,31 @@ def process_task(
 
     Path(out_stem).parent.mkdir(parents=True, exist_ok=True)
 
-    # ── Mermaid (full per-head graph) ─────────────────────────────────────────
+    # ── Mermaid .md ──────────────────────────────────────────────────────────
+    # Full per-head Mermaid for small models; compact (one node/layer) for large.
+    md_path = Path(f"{out_stem}.md")
     if emit_full:
-        md_path = Path(f"{out_stem}.md")
         mermaid_str = build_mermaid(**common)
-        md_path.write_text(
-            f"```mermaid\n{mermaid_str}\n```\n\n"
-            f"<!-- Paste the block above at https://mermaid.live to render -->\n",
-            encoding="utf-8",
-        )
-        print(f"  Mermaid  → {md_path}")
+    else:
+        mermaid_str = build_compact_mermaid(**common, layer_window=layer_window)
+    md_path.write_text(
+        f"```mermaid\n{mermaid_str}\n```\n\n"
+        f"<!-- Paste the block above at https://mermaid.live to render -->\n",
+        encoding="utf-8",
+    )
+    print(f"  Mermaid  → {md_path}")
 
-    # ── DOT — full per-head graph ─────────────────────────────────────────────
+    # ── DOT — full per-head graph (small models only) ─────────────────────────
     if emit_full:
         dot_path = Path(f"{out_stem}.dot")
         dot_str  = build_dot(**common)
         dot_path.write_text(dot_str, encoding="utf-8")
         print(f"  DOT      → {dot_path}")
-        _render_dot(dot_str, out_stem)
+        png_ok = _render_dot(dot_str, out_stem)
+        if not png_ok:
+            _render_heatmap(attn_ratios, mlp_ratios, act_a, act_m,
+                            model_name, label, mag_threshold,
+                            f"{out_stem}.png")
 
     # ── Compact DOT — layer-summary graph (no individual head nodes) ──────────
     if emit_compact:
@@ -1860,7 +2058,11 @@ def process_task(
         c_path   = Path(f"{c_stem}.dot")
         c_path.write_text(c_dot, encoding="utf-8")
         print(f"  Compact  → {c_path}")
-        _render_dot(c_dot, c_stem)
+        png_ok = _render_dot(c_dot, c_stem)
+        if not png_ok:
+            _render_heatmap(attn_ratios, mlp_ratios, act_a, act_m,
+                            model_name, label, mag_threshold,
+                            f"{c_stem}.png")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
