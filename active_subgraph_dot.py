@@ -455,17 +455,27 @@ def load_model(model_name: str, device: str = "cuda",
                     low_cpu_mem_usage=True,
                 )
             else:
-                # Too large for bfloat16 — 4-bit NF4.
-                # Critical insight (confirmed across three failed attempts):
-                # when max_memory gives device_map a GPU quota >= nf4_gib,
-                # accelerate plans ALL layers on GPU and bypasses BnB
-                # quantization → model loads in bfloat16 → OOM at ~60%
-                # (60 % × 130 GiB ≈ 78 GiB).  When the quota is BELOW
-                # nf4_gib, device_map must plan some layers on CPU, which
-                # forces the accelerate loading path that actually applies
-                # BnB quantization for the GPU-assigned layers.
-                # GPU layers  → 4-bit NF4 (fast inference).
-                # CPU overflow → fp32   (slower but small fraction).
+                # Model is too large for bfloat16 on GPU alone.
+                # Strategy: 4-bit NF4 if bitsandbytes >= 0.43, otherwise
+                # fall back to bfloat16 + CPU offloading.
+                #
+                # Why the BnB version gate?
+                #   Old BnB (< 0.43) with CPU-offloaded 4-bit layers hits two
+                #   cascading bugs: (1) Params4bit.__new__ rejects the new
+                #   _is_hf_initialized kwarg from transformers → TypeError;
+                #   (2) after patching that away, old BnB re-initialises
+                #   every Params4bit on the CPU path and calls .item() on
+                #   meta tensors (lazy CPU placeholders) → RuntimeError.
+                #   BnB 0.43 added _is_hf_initialized precisely to skip that
+                #   re-initialisation.  The meta-tensor error cannot be
+                #   monkey-patched away without rewriting BnB internals.
+                #   Solution: detect the version and go straight to the
+                #   reliable bfloat16+CPU path when BnB is too old.
+                #
+                # To enable 4-bit (much faster inference):
+                #   1. Add  !pip install -qU bitsandbytes  to your notebook
+                #   2. Runtime → Restart runtime
+                #   3. Re-run
                 from transformers import BitsAndBytesConfig
                 import gc
                 os.environ.setdefault("PYTORCH_ALLOC_CONF",
@@ -473,87 +483,85 @@ def load_model(model_name: str, device: str = "cuda",
 
                 vram_gib = (torch.cuda.get_device_properties(0).total_memory
                             / (1024 ** 3))
-                # Free GPU memory right now — relevant if a previous model or
-                # failed load is still occupying the GPU.
                 free_gib = ((torch.cuda.get_device_properties(0).total_memory
                              - torch.cuda.memory_allocated(0))
                             / (1024 ** 3))
-                nf4_gib = param_b * 0.5 / 1.073741824  # approx 4-bit GiB
+                nf4_gib = param_b * 0.5 / 1.073741824  # 4-bit size in GiB
 
-                print(f"  [B] 4-bit NF4 (~{nf4_gib:.0f} GiB); "
-                      f"GPU {free_gib:.0f}/{vram_gib:.0f} GiB free …")
-
+                print(f"  [B] GPU {free_gib:.0f}/{vram_gib:.0f} GiB free …")
                 if free_gib < nf4_gib * 1.1:
                     print(f"  [B] WARNING: only {free_gib:.1f} GiB free — "
-                          f"restart Colab runtime for a clean GPU before "
-                          f"loading a {param_b:.0f}B model.")
+                          f"restart runtime for a clean GPU.")
 
-                # ── bitsandbytes compatibility patch ──────────────────────
-                # Newer transformers passes _is_hf_initialized to
-                # Params4bit.__new__(), but bitsandbytes < 0.43 doesn't
-                # accept it → TypeError after 100 % of weights are loaded.
-                # This patch silently drops the kwarg so old BnB works with
-                # new transformers.  Safe: the missing flag just means old
-                # BnB treats every Params4bit as not yet HF-initialised,
-                # which matches the original pre-0.43 behaviour.
+                # Check whether this BnB version supports 4-bit + CPU offload
                 try:
                     import bitsandbytes.nn as _bnb_nn, inspect as _insp
-                    _p4b_params = (
-                        _insp.signature(_bnb_nn.Params4bit.__new__).parameters
+                    _bnb_ok = ("_is_hf_initialized" in
+                               _insp.signature(
+                                   _bnb_nn.Params4bit.__new__
+                               ).parameters)
+                    import bitsandbytes as _bnb_mod
+                    _bnb_ver = _bnb_mod.__version__
+                except Exception:
+                    _bnb_ok, _bnb_ver = False, "unknown"
+
+                if _bnb_ok:
+                    # ── New BnB (≥ 0.43): 4-bit NF4 + CPU overflow ────────
+                    print(f"  [B] bitsandbytes {_bnb_ver} — 4-bit NF4 …")
+                    bnb = BitsAndBytesConfig(
+                        load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.bfloat16,
+                        bnb_4bit_use_double_quant=True,
+                        llm_int8_enable_fp32_cpu_offload=True,
                     )
-                    if "_is_hf_initialized" not in _p4b_params:
-                        _orig_new = _bnb_nn.Params4bit.__new__
-                        def _compat_new(cls, *a, **kw):
-                            kw.pop("_is_hf_initialized", None)
-                            return _orig_new(cls, *a, **kw)
-                        _bnb_nn.Params4bit.__new__ = staticmethod(_compat_new)
-                        print("  [B] Applied BnB compat patch "
-                              "(_is_hf_initialized).")
-                except Exception as _pe:
-                    print(f"  [B] BnB patch skipped ({_pe}).")
 
-                # llm_int8_enable_fp32_cpu_offload is required when any layer
-                # is dispatched to CPU (raises ValueError without it).
-                bnb = BitsAndBytesConfig(
-                    load_in_4bit=True, bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.bfloat16,
-                    bnb_4bit_use_double_quant=True,
-                    llm_int8_enable_fp32_cpu_offload=True,
-                )
+                    def _load_4bit(gq):
+                        return AutoModelForCausalLM.from_pretrained(
+                            model_name,
+                            quantization_config=bnb,
+                            device_map="auto",
+                            low_cpu_mem_usage=True,
+                            max_memory={0: f"{gq}GiB", "cpu": "180GiB"},
+                        )
 
-                def _load_4bit(gq):
-                    return AutoModelForCausalLM.from_pretrained(
+                    # Quota must be below nf4_gib (forces CPU layers → BnB
+                    # quantization path) and below free_gib/4.2 (bfloat16
+                    # fallback = 4× quota must still fit on GPU).
+                    gpu_q = min(
+                        max(8, int(nf4_gib * 0.95)),
+                        max(8, int(free_gib * 0.80)),
+                        max(8, int(free_gib / 4.2)),
+                    )
+                    print(f"  [B] GPU quota {gpu_q} GiB …")
+                    try:
+                        hf_model_b = _load_4bit(gpu_q)
+                    except torch.cuda.OutOfMemoryError:
+                        gc.collect(); torch.cuda.empty_cache(); gc.collect()
+                        gpu_q2 = max(4, gpu_q // 2)
+                        print(f"  [B] OOM → retrying at {gpu_q2} GiB …")
+                        hf_model_b = _load_4bit(gpu_q2)
+
+                else:
+                    # ── Old BnB (< 0.43): bfloat16 + CPU offloading ───────
+                    # No 4-bit attempt — a failed 4-bit load leaves ~70 GiB
+                    # of ghost memory that poisons subsequent attempts.
+                    print(f"  [B] bitsandbytes {_bnb_ver} (need ≥0.43). "
+                          f"4-bit disabled; using bfloat16 + CPU offload.")
+                    print(f"  [B] To enable 4-bit: "
+                          f"!pip install -qU bitsandbytes  then restart.")
+
+                    # Give GPU 65 % of free VRAM for bfloat16 layers; the
+                    # rest spills to CPU RAM (~100 GiB limit keeps us safe
+                    # on Colab's 167 GB instances).
+                    gpu_bf16 = max(8, int(free_gib * 0.65))
+                    print(f"  [B] bfloat16; GPU quota {gpu_bf16} GiB + CPU …")
+                    hf_model_b = AutoModelForCausalLM.from_pretrained(
                         model_name,
-                        quantization_config=bnb,
+                        torch_dtype=torch.bfloat16,
                         device_map="auto",
                         low_cpu_mem_usage=True,
-                        max_memory={0: f"{gq}GiB", "cpu": "180GiB"},
+                        max_memory={0: f"{gpu_bf16}GiB", "cpu": "100GiB"},
                     )
-
-                # GPU quota — three constraints must all be satisfied:
-                # (a) < nf4_gib: forces device_map to plan CPU layers, which
-                #     activates the BnB-quantizing accelerate loading path.
-                # (b) ≤ 80 % of currently-free GPU: avoid OOM from pre-
-                #     existing allocations (other loaded models, etc.).
-                # (c) ≤ free_gib / 4.2: if BnB quantization is bypassed and
-                #     the model loads in bfloat16, the GPU usage is 4× the
-                #     4-bit quota (bfloat16 = 2 bytes vs 0.5 bytes per param).
-                #     This cap ensures the bfloat16 size still fits on GPU.
-                gpu_q = min(
-                    max(8, int(nf4_gib * 0.95)),   # (a)
-                    max(8, int(free_gib * 0.80)),   # (b)
-                    max(8, int(free_gib / 4.2)),    # (c)
-                )
-                print(f"  [B] GPU quota {gpu_q} GiB "
-                      f"(forces BnB quantization path) …")
-                try:
-                    hf_model_b = _load_4bit(gpu_q)
-                except torch.cuda.OutOfMemoryError:
-                    gc.collect(); torch.cuda.empty_cache(); gc.collect()
-                    gpu_q2 = max(4, gpu_q // 2)
-                    print(f"  [B] OOM at {gpu_q} GiB — retrying with "
-                          f"{gpu_q2} GiB. Restart runtime if this fails.")
-                    hf_model_b = _load_4bit(gpu_q2)
 
             tokenizer_b = AutoTokenizer.from_pretrained(model_name)
             hf_model_b.eval()
