@@ -498,15 +498,19 @@ def load_model(model_name: str, device: str = "cuda",
                           f"restart runtime for a clean GPU.")
 
                 # Check whether this BnB version supports 4-bit + CPU offload.
-                # Requires BnB >= 0.43 (added _is_hf_initialized / stable CPU offload).
-                # Use version-string comparison — signature introspection is unreliable
-                # across BnB refactors (e.g. 0.49.x changed internal class layout).
+                # The tell is whether Params4bit.__new__ accepts _is_hf_initialized:
+                # transformers passes that kwarg when loading 4-bit models; if BnB
+                # doesn't declare it (e.g. 0.49.x), the load raises TypeError after
+                # spending tens of minutes on weights.  Signature introspection is the
+                # right probe — version numbers alone don't track this API surface.
                 try:
                     import bitsandbytes as _bnb_mod
                     _bnb_ver = _bnb_mod.__version__
-                    _bnb_ok = (
-                        tuple(int(x) for x in _bnb_ver.split(".")[:2]) >= (0, 43)
-                    )
+                    import bitsandbytes.nn as _bnb_nn, inspect as _insp
+                    _bnb_ok = ("_is_hf_initialized" in
+                               _insp.signature(
+                                   _bnb_nn.Params4bit.__new__
+                               ).parameters)
                 except Exception:
                     _bnb_ok, _bnb_ver = False, "unknown"
 
