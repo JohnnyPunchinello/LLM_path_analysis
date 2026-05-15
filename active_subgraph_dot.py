@@ -720,6 +720,41 @@ def _active_heads(head_scores: np.ndarray, layer: int,
     return (row >= rel_threshold * mx).tolist()
 
 
+def _detect_phases(n_layers: int,
+                   attn_ratios: Optional[np.ndarray] = None,
+                   mlp_ratios:  Optional[np.ndarray] = None) -> dict:
+    """
+    Partition layers into three phases reflecting the hourglass topology
+    of transformer computation.  Used by the renderers to make the multi-
+    scale (macro-phase) structure explicit in the rendered diagram.
+
+      warm-up      = path origins         (~ first 10 % of layers, min 2)
+      computation  = path crossings       (the middle)
+      funnel       = path convergence     (~ last 15 % of layers, min 3)
+
+    Returns
+    -------
+    dict with keys "warm_up", "computation", "funnel" → list[int] of layer
+    indices.  Empty lists are possible when n_layers is small.
+    """
+    n_warm   = max(2, int(round(0.10 * n_layers)))
+    n_funnel = max(3, int(round(0.15 * n_layers)))
+
+    if n_warm + n_funnel >= n_layers:
+        # Tiny model — collapse to a single phase
+        return {
+            "warm_up":     list(range(n_layers)),
+            "computation": [],
+            "funnel":      [],
+        }
+
+    return {
+        "warm_up":     list(range(0, n_warm)),
+        "computation": list(range(n_warm, n_layers - n_funnel)),
+        "funnel":      list(range(n_layers - n_funnel, n_layers)),
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Magnitude-ratio scoring  (active / inactive block criterion)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1319,24 +1354,37 @@ def build_compact_dot(
     """
     Compact layer-summary Graphviz DOT graph for large models.
 
-    Draws one [Attn] box + one [FFN] box per layer instead of individual head
-    ellipses.  Scales to 80+ layer models (Llama-3-70B, GPT-NeoX-20B, etc.)
-    without overwhelming Graphviz.
+    Encodes the analysis ontology directly in the rendered diagram:
 
-    Node colour encodes the magnitude ratio (heat-map: pale → deep).
-    Skip arc style encodes block activity:
-      - thick teal  = skip-dominant / block inactive  (ratio < threshold)
-      - thin dashed = block active  (ratio >= threshold)
+      System     — graph title: model + task + active counts
+      Unit       — one [Attn] box + one [FFN] box per layer; basic atom
+      Interaction— directed edges (residual stream); skip arc thickness
+                   encodes whether the residual or the block dominates.
+                   (Per-path attribution weights would appear here once
+                   the gradient is restored — see _render_heatmap fallback
+                   for the magnitude-only profile.)
+      Multiscale — three phase clusters (warm-up / computation / funnel)
+                   wrap the layer nodes at the macro scale.  Each layer
+                   pair of Attn/FFN boxes is the meso scale.
+      Observable — node fill encodes  r = ||block_out|| / ||embedding||
+                   (heat-map: pale → deep within the active-colour ramp;
+                   grey for inactive blocks)
+      Emergent   — hourglass topology: wide source field, dense middle
+                   crossings, narrow readout funnel.  Visible at a glance
+                   from the cluster shapes.
+
+    A Legend cluster shows colour semantics and unit/edge meanings.
 
     layer_window : Optional (first_n, last_n).
         When set, only the first `first_n` and last `last_n` layers are
-        rendered, separated by a '…' gap node.  Useful for 80-layer models.
+        rendered, separated by a '…' gap node inside the computation cluster.
     """
     _RESID_COL = "#17a589"  # teal = skip-dominant path
 
     ar_max  = max(float(attn_ratios.max()), 1e-6)
     mr_max  = max(float(mlp_ratios.max()),  1e-6) if not is_attn_only else 1.0
     wrapped = textwrap.shorten(task_text, width=70, placeholder=" ...")
+    phases  = _detect_phases(n_layers, attn_ratios, mlp_ratios)
 
     # ── Determine which layers to draw ───────────────────────────────────────
     gap_after: Optional[int] = None   # layer index after which to insert '...'
@@ -1349,6 +1397,7 @@ def build_compact_dot(
             gap_after = fn - 1
     else:
         layers_to_show = list(range(n_layers))
+    visible = set(layers_to_show)
 
     n_act_a = sum(active_attn[l] for l in layers_to_show)
     n_act_m = (sum(active_mlp[l] for l in layers_to_show)
@@ -1363,7 +1412,9 @@ def build_compact_dot(
         f'\\"{wrapped}\\"\\n'
         f"Active attn: {n_act_a}/{n_layers}   "
         f"Active FFN: {n_act_m}/{n_layers}   "
-        f"threshold: {mag_threshold}"
+        f"threshold: {mag_threshold}\\n"
+        f"System: transformer DAG  |  Unit: (layer, type)  |  "
+        f"Edge: residual flow  |  Fill: r = ||block||/||embed||"
     )
 
     lines: List[str] = [
@@ -1373,8 +1424,26 @@ def build_compact_dot(
         "  rankdir=TB;",
         "  splines=curved;",
         "  nodesep=0.25; ranksep=0.50;",
+        "  compound=true;",                                  # allow inter-cluster edges
         '  node [fontname="Helvetica" fontsize=9 style=filled];',
         '  edge [fontname="Helvetica" fontsize=7];',
+        "",
+        # ── Legend cluster ────────────────────────────────────────────────
+        "  subgraph cluster_legend {",
+        '    label="📋 Legend — ontology"; fontsize=10; fontname="Helvetica";',
+        '    style=filled; fillcolor="#fffde7"; color="#fbc02d"; penwidth=1.0;',
+        '    LG_U [label="Unit\\n(layer, type)" shape=box '
+        'fillcolor="#ffffff" color="#888" fontsize=8];',
+        '    LG_A [label="attn active" shape=box '
+        f'fillcolor="{_ATTN_HI}" fontcolor="#ffffff" color="#7b241c" fontsize=8];',
+        '    LG_M [label="FFN active" shape=box '
+        f'fillcolor="{_MLP_HI}" fontcolor="#ffffff" color="#1a5276" fontsize=8];',
+        '    LG_I [label="inactive" shape=box '
+        f'fillcolor="{_INACTIVE}" color="#cccccc" fontcolor="#888" fontsize=8];',
+        '    LG_E [label="thick teal = skip dominant\\nthin dashed = block active" '
+        'shape=plaintext fontsize=7];',
+        "    LG_U -> LG_A -> LG_M -> LG_I [style=invis];",
+        "  }",
         "",
         '  EMB [label="Embedding" shape=box fillcolor="#e8f5e9" '
         'color="#388e3c" penwidth=1.5 fontcolor="#1b5e20"];',
@@ -1383,8 +1452,47 @@ def build_compact_dot(
 
     gap_inserted = False
 
-    # ── Node declarations ────────────────────────────────────────────────────
+    # ── Phase clusters (macro-scale grouping) ────────────────────────────────
+    # Open each phase as a DOT cluster.  Nodes declared inside go into that
+    # cluster; edges still cross freely.  Layer order is preserved.
+    phase_specs = [
+        ("warmup",  "📥 Warm-up · path origins",       phases["warm_up"],
+         "#fff8e1", "#f9a825"),
+        ("compute", "🔀 Computation · path crossings", phases["computation"],
+         "#f3e5f5", "#8e24aa"),
+        ("funnel",  "📤 Funnel · path convergence",    phases["funnel"],
+         "#ffebee", "#c62828"),
+    ]
+    layer_to_phase = {}
+    for phase_id, _, phase_layers, _, _ in phase_specs:
+        for l in phase_layers:
+            layer_to_phase[l] = phase_id
+
+    # Begin first phase
+    current_phase: Optional[str] = None
+    phase_meta = {pid: (lbl, fc, ec) for pid, lbl, _, fc, ec in phase_specs}
+
+    def _open_phase(pid: str):
+        lbl, fc, ec = phase_meta[pid]
+        lines.append(f"  subgraph cluster_{pid} {{")
+        lines.append(f'    label="{lbl}"; fontsize=10; fontname="Helvetica";')
+        lines.append(f'    style=filled; fillcolor="{fc}"; color="{ec}"; penwidth=1.5;')
+
+    def _close_phase():
+        lines.append("  }")
+        lines.append("")
+
+    # ── Node declarations (grouped by phase) ─────────────────────────────────
     for l in layers_to_show:
+        # Phase boundary handling: close the previous cluster, open the next
+        layer_phase = layer_to_phase.get(l)
+        if layer_phase != current_phase:
+            if current_phase is not None:
+                _close_phase()
+            if layer_phase is not None:
+                _open_phase(layer_phase)
+            current_phase = layer_phase
+
         a_id  = f"A{l}"
         sa_id = f"SA{l}"
         f_id  = f"F{l}"
@@ -1444,8 +1552,13 @@ def build_compact_dot(
 
         lines.append("")
 
+    # Close the final phase cluster opened in the loop above
+    if current_phase is not None:
+        _close_phase()
+        current_phase = None
+
     # ── Edge declarations ─────────────────────────────────────────────────────
-    lines.append("  // ── Edges ──")
+    lines.append("  // ── Edges (interactions — residual-stream backbone) ──")
     prev = "EMB"
     gap_edge_done = False
 
@@ -1540,86 +1653,165 @@ def build_compact_mermaid(
     """
     Compact Mermaid flowchart for large models (> 40 layers).
 
-    One node per layer — no individual head ellipses.  Each node label shows
-    the magnitude ratio and active/inactive status for attn and FFN.  Colour:
-      purple  = both active   red = attn-only   blue = FFN-only   grey = neither
+    Encodes the analysis ontology directly in the rendered diagram:
+
+      System     — title bar: model + task + active-count summary
+      Unit       — one node per (layer, type) box; basic computation atom
+      Interaction— stream edges (residual) connect units; one arrow per
+                   write/read pair (currently just the backbone — edge
+                   weights need the per-head attribution gradient)
+      Multiscale — three phase sub-clusters (warm-up / computation /
+                   funnel) wrap the layer nodes; this is the macro scale.
+                   Layer-level nodes themselves are the meso scale
+                   (heads collapsed; full per-head view is in build_mermaid)
+      Observable — node fill encodes  r = ||block_out|| / ||embedding||
+                   (red = attn active, blue = FFN active, purple = both,
+                   grey = neither)
+      Emergent   — the hourglass shape: many path origins → middle
+                   crossings → narrow convergence funnel.  Visible at a
+                   glance from the phase clustering.
+
+    A Legend sub-cluster shows colour semantics and unit/edge meanings.
     """
     wrapped = textwrap.shorten(task_text, width=70, placeholder=" ...")
+    phases  = _detect_phases(n_layers, attn_ratios, mlp_ratios)
 
-    # Which layers to draw
-    gap_before: Optional[int] = None   # position in layers_to_show before which gap goes
+    # Layer-window handling
     if layer_window is not None:
         fn, ln = layer_window
         if fn + ln < n_layers:
-            layers_to_show = list(range(fn)) + list(range(n_layers - ln, n_layers))
-            gap_before = fn   # insert gap node before position fn in layers_to_show
+            visible = set(range(fn)) | set(range(n_layers - ln, n_layers))
         else:
-            layers_to_show = list(range(n_layers))
+            visible = set(range(n_layers))
     else:
-        layers_to_show = list(range(n_layers))
+        visible = set(range(n_layers))
 
-    n_act_a = sum(active_attn[l] for l in layers_to_show)
-    n_act_m = (sum(active_mlp[l] for l in layers_to_show)
+    n_act_a = sum(active_attn[l] for l in visible)
+    n_act_m = (sum(active_mlp[l]  for l in visible)
                if not is_attn_only else 0)
+
+    title = (
+        f"{task_label} | {model_name} | {n_layers}L × {n_heads}H | "
+        f"attn {n_act_a}/{n_layers} active | "
+        f"ffn {n_act_m}/{n_layers} active"
+    )
 
     lines: List[str] = [
         "---",
-        f'title: "{task_label} | {model_name} | {n_layers}L×{n_heads}H | '
-        f'attn {n_act_a}/{n_layers} active | ffn {n_act_m}/{n_layers} active"',
+        f'title: "{title}"',
         "---",
+        "",
+        "%% ── Ontology of this diagram ─────────────────────────────────────",
+        "%% System     : transformer (residual-stream DAG)",
+        "%% Unit       : one (layer, type) block — the basic computation",
+        "%% Interaction: residual-stream write→read between two units",
+        "%% Multiscale : phase clusters (macro) wrap layer nodes (meso)",
+        "%% Observable : r = ||block_out|| / ||embedding||   (encoded in fill)",
+        "%% Emergent   : hourglass — origins → crossings → convergence",
+        "%% ─────────────────────────────────────────────────────────────────",
+        "",
         "%%{ init: { 'theme': 'base', 'themeVariables': {",
         "    'background': '#ffffff', 'primaryColor': '#f4f4f4',",
-        "    'lineColor': '#555555', 'fontSize': '11px'",
+        "    'lineColor': '#555555', 'fontSize': '11px',",
+        "    'clusterBkg': '#fafafa', 'clusterBorder': '#aaaaaa'",
         "} } }%%",
         "flowchart TB",
         "",
+        "  %% Unit-fill classes (observable r → colour)",
         "  classDef act_a fill:#d62728,color:#fff,stroke:#9a1a1a,stroke-width:1.5px",
         "  classDef act_m fill:#1f77b4,color:#fff,stroke:#1a5276,stroke-width:1.5px",
         "  classDef act_b fill:#7b1fa2,color:#fff,stroke:#4a0072,stroke-width:1.5px",
         "  classDef inact fill:#f4f4f4,color:#aaa,stroke:#cccccc,stroke-width:0.8px",
         "  classDef io    fill:#e8f5e9,color:#1b5e20,stroke:#388e3c,stroke-width:1.5px",
         "  classDef gap   fill:#fff,color:#777,stroke:#ccc,stroke-width:0.5px",
+        "  classDef lgnd  fill:#fffde7,color:#5d4037,stroke:#fbc02d,stroke-width:1px",
         "",
-        f'  EMB["🔷 Embedding\\n{wrapped}"]:::io',
+        # ── Legend cluster (encodes the ontology visually) ────────────────
+        '  subgraph LEGEND["📋 Legend — ontology of this diagram"]',
+        "    direction LR",
+        '    LG_U["Unit = one (layer, type) block"]:::lgnd',
+        '    LG_E["Edge = residual-stream interaction"]:::lgnd',
+        '    LG_A["attn active"]:::act_a',
+        '    LG_M["FFN active"]:::act_m',
+        '    LG_B["both active"]:::act_b',
+        '    LG_I["neither"]:::inact',
+        "  end",
+        "",
+        f'  EMB["🔷 Embedding · \\"{wrapped}\\""]:::io',
         "",
     ]
 
-    prev = "EMB"
-    for pos, l in enumerate(layers_to_show):
-        # Gap placeholder between first-N and last-M layers
-        if gap_before is not None and pos == gap_before:
-            lines.append('  GAP["… middle layers …"]:::gap')
-            lines.append(f"  {prev} --> GAP")
-            prev = "GAP"
+    # ── Phase clusters (macro-scale multiscale structure) ───────────────────
+    # Determine which layers fall in each phase AND are visible
+    phase_specs = [
+        ("warmup",  "📥 Warm-up · path origins",       phases["warm_up"]),
+        ("compute", "🔀 Computation · path crossings", phases["computation"]),
+        ("funnel",  "📤 Funnel · path convergence",    phases["funnel"]),
+    ]
 
-        a_act = active_attn[l]
-        m_act = active_mlp[l] if not is_attn_only else False
-        a_sym = "✓" if a_act else "✗"
-        m_sym = "✓" if m_act else "✗"
+    # Determine if a gap node is needed inside the computation phase
+    gap_needed_in_compute = False
+    gap_after_layer = None  # the layer after which the gap is inserted
+    if layer_window is not None:
+        fn, ln = layer_window
+        if fn + ln < n_layers and fn - 1 in visible:
+            gap_after_layer = fn - 1
+            comp_layers = phases["computation"]
+            if comp_layers and (
+                any(l < fn for l in comp_layers) and
+                any(l >= n_layers - ln for l in comp_layers)
+            ):
+                gap_needed_in_compute = True
 
-        if not is_attn_only:
-            lbl = f"L{l} | A {a_sym}{attn_ratios[l]:.2f} | F {m_sym}{mlp_ratios[l]:.2f}"
+    for phase_id, phase_label, phase_layers in phase_specs:
+        visible_in_phase = [l for l in phase_layers if l in visible]
+        if not visible_in_phase:
+            continue
+        lines.append(f'  subgraph PHASE_{phase_id}["{phase_label}"]')
+        lines.append("    direction TB")
+        for l in visible_in_phase:
+            a_act = active_attn[l]
+            m_act = active_mlp[l] if not is_attn_only else False
+            a_sym = "✓" if a_act else "✗"
+            m_sym = "✓" if m_act else "✗"
+            if not is_attn_only:
+                lbl = (f"L{l} | A {a_sym}{attn_ratios[l]:.2f} "
+                       f"| F {m_sym}{mlp_ratios[l]:.2f}")
+            else:
+                lbl = f"L{l} | A {a_sym}{attn_ratios[l]:.2f}"
+            cls = ("act_b" if (a_act and m_act)
+                   else "act_a" if a_act
+                   else "act_m" if m_act
+                   else "inact")
+            lines.append(f'    L{l}["{lbl}"]:::{cls}')
+
+        # Gap placeholder inside the computation phase
+        if (phase_id == "compute" and gap_needed_in_compute
+                and gap_after_layer is not None):
+            lines.append('    GAP["… middle layers omitted …"]:::gap')
+
+        lines.append("  end")
+        lines.append("")
+
+    # ── Information-flow edges (residual-stream chain) ──────────────────────
+    lines.append("  %% Interaction edges (residual-stream backbone)")
+    lines.append(f"  EMB --> L{sorted(visible)[0]}")
+    visible_sorted = sorted(visible)
+    for i in range(len(visible_sorted) - 1):
+        cur, nxt = visible_sorted[i], visible_sorted[i + 1]
+        if gap_after_layer is not None and cur == gap_after_layer:
+            lines.append(f"  L{cur} --> GAP")
+            lines.append(f"  GAP --> L{nxt}")
         else:
-            lbl = f"L{l} | A {a_sym}{attn_ratios[l]:.2f}"
-
-        cls = ("act_b" if (a_act and m_act)
-               else "act_a" if a_act
-               else "act_m" if m_act
-               else "inact")
-
-        nid = f"L{l}"
-        lines.append(f'  {nid}["{lbl}"]:::{cls}')
-        lines.append(f"  {prev} --> {nid}")
-        prev = nid
+            lines.append(f"  L{cur} --> L{nxt}")
 
     lines += [
         "",
         '  OUT["🔶 Logits / Output"]:::io',
-        f"  {prev} --> OUT",
+        f"  L{visible_sorted[-1]} --> OUT",
         "",
-        f"  %% Stats: k={k_edges}  epsilon={epsilon:.5f}  coverage={mass_coverage:.0%}",
-        f"  %% threshold={mag_threshold}  "
-        f"active_attn={n_act_a}/{n_layers}  active_ffn={n_act_m}/{n_layers}",
+        f"  %% Stats: k={k_edges}  epsilon={epsilon:.5f}  "
+        f"coverage={mass_coverage:.0%}  threshold={mag_threshold}",
     ]
     return "\n".join(lines)
 
@@ -1687,45 +1879,102 @@ def _render_heatmap(
     out_path:     str,
 ) -> None:
     """
-    Fallback PNG when DOT layout times out: a two-panel bar chart of
-    magnitude ratios per layer, generated via matplotlib.
+    Fallback PNG when DOT layout times out — also doubles as the macroscale
+    observable profile of the active subgraph.
 
-    Red bars  = active attention layer  (ratio ≥ threshold)
-    Blue bars = active FFN layer
-    Grey bars = inactive block
-    Dashed line = mag_threshold
+    Encodes the analysis ontology in a static image:
+      System     — figure title (model + task)
+      Unit       — one bar per (layer, type)
+      Observable — bar height = r = ||block_out|| / ||embedding||
+                   bar colour = active (red attn / blue FFN) vs inactive (grey)
+      Multiscale — three coloured background bands mark warm-up /
+                   computation / funnel phases; labels at the top of the
+                   upper axis name them
+      Emergent   — the hourglass: r grows from front to back across the
+                   funnel band, the visual signature of path convergence
+      Threshold  — dashed horizontal line at mag_threshold
     """
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
 
         n_layers = len(attn_ratios)
         xs = list(range(n_layers))
+        phases = _detect_phases(n_layers, attn_ratios, mlp_ratios)
 
         fig, axes = plt.subplots(2, 1,
-                                 figsize=(max(14, n_layers * 0.22), 5),
+                                 figsize=(max(14, n_layers * 0.22), 5.5),
                                  sharex=True)
-        fig.suptitle(f"{task_label}  |  {model_name}", fontsize=11)
+        fig.suptitle(
+            f"{task_label}  |  {model_name}\n"
+            f"System: transformer DAG   ·   "
+            f"Unit: (layer, type)   ·   "
+            f"Observable r = ‖block_out‖ / ‖embed‖   ·   "
+            f"Phases: warm-up / computation / funnel",
+            fontsize=10,
+        )
 
+        # ── Phase background bands ───────────────────────────────────────
+        phase_colours = {
+            "warm_up":     ("#fff8e1", "Warm-up · path origins"),
+            "computation": ("#f3e5f5", "Computation · path crossings"),
+            "funnel":      ("#ffebee", "Funnel · path convergence"),
+        }
+        for ax in axes:
+            for pname, layers in phases.items():
+                if not layers:
+                    continue
+                lo = min(layers) - 0.5
+                hi = max(layers) + 0.5
+                col, _ = phase_colours[pname]
+                ax.axvspan(lo, hi, color=col, alpha=0.8, zorder=0)
+
+        # Label the phases above the top axis
+        ax0_top = axes[0].secondary_xaxis("top")
+        ticks, labels = [], []
+        for pname, layers in phases.items():
+            if not layers:
+                continue
+            mid = (min(layers) + max(layers)) / 2
+            _, lab = phase_colours[pname]
+            ticks.append(mid)
+            labels.append(lab)
+        ax0_top.set_xticks(ticks)
+        ax0_top.set_xticklabels(labels, fontsize=8)
+        ax0_top.tick_params(length=0, pad=2)
+
+        # ── Bars ─────────────────────────────────────────────────────────
         for ax, ratios, active, ylabel, hi_col in [
-            (axes[0], attn_ratios, active_attn, "Attn ratio", "#d62728"),
-            (axes[1], mlp_ratios,  active_mlp,  "FFN ratio",  "#1f77b4"),
+            (axes[0], attn_ratios, active_attn, "Attn  r", "#d62728"),
+            (axes[1], mlp_ratios,  active_mlp,  "FFN  r",  "#1f77b4"),
         ]:
             colors = [hi_col if a else "#cccccc" for a in active]
-            ax.bar(xs, ratios, color=colors, edgecolor="none", width=0.8)
+            ax.bar(xs, ratios, color=colors, edgecolor="none", width=0.8,
+                   zorder=2)
             ax.axhline(mag_threshold, color="#333333", linewidth=1.0,
-                       linestyle="--", label=f"threshold={mag_threshold}")
+                       linestyle="--", zorder=3,
+                       label=f"threshold = {mag_threshold}")
             ax.set_ylabel(ylabel, fontsize=9)
             ax.tick_params(labelsize=7)
-            ax.legend(fontsize=7, loc="upper left")
+
+            # Legend with unit / observable glyphs
+            handles = [
+                mpatches.Patch(color=hi_col, label="active unit (block dominates)"),
+                mpatches.Patch(color="#cccccc", label="inactive unit (skip dominates)"),
+            ]
+            ax.legend(handles=handles + [
+                plt.Line2D([0], [0], color="#333", linestyle="--",
+                           label=f"threshold = {mag_threshold}")
+            ], fontsize=7, loc="upper left", framealpha=0.9)
 
         tick_step = max(1, n_layers // 20)
-        axes[1].set_xlabel("Layer", fontsize=9)
+        axes[1].set_xlabel("Layer index ℓ  (basic computation unit)", fontsize=9)
         axes[1].set_xticks(range(0, n_layers, tick_step))
         axes[1].set_xticklabels(range(0, n_layers, tick_step), fontsize=7)
 
-        plt.tight_layout()
+        plt.tight_layout(rect=(0, 0, 1, 0.95))
         plt.savefig(out_path, dpi=120, bbox_inches="tight")
         plt.close(fig)
         print(f"  Heatmap  → {out_path}")
