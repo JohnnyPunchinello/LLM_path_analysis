@@ -1,21 +1,53 @@
+# Python
 __pycache__/
+__pycache__
 *.py[cod]
 *.egg-info/
-.venv/
-.env
+transformer_lens\.egg*
+MANIFEST.in
+settings.ini
+_modidx.py
+.ipynb_checkpoints
 
-# generated demo artefacts
+# Virtual environments
+.venv/
+.venv
+env/
+env
+
+# Notebooks / scratch
+Testing_Notebook.ipynb
+transformer_lens/scratch.py
+nbs
+_proc
+
+# IDEs
+.idea/
+.vscode/
+
+# Wandb / ML experiment tracking
+wandb*
+
+# Dist / docs
+dist/
+docs/build
+docs/source/generated
+**.orig
+
+# Demo outputs (large generated PNGs)
 demo_landscape.png
 demo_torch_landscape.png
 demo_compare.png
 demo_compare_serious.png
 demo_celegans_vs_ai.png
 
-# agent pipeline output
+# Analysis results (use emergence_analysis_web/ for published output)
 emergence_analysis/
-emergence_analysis_web/
 
-# editor / OS
+# OS
 .DS_Store
-.idea/
-.vscode/
+.Ds_Store
+.env
+.coverage*
+.pylintrc
+core.py

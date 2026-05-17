@@ -1,0 +1,59 @@
+% neurips_2024.sty - Simplified NeurIPS 2024 style
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{neurips_2024}[2024/01/01 NeurIPS 2024 Style]
+
+\newif\if@preprint\@preprinttrue
+\DeclareOption{preprint}{\@preprinttrue}
+\DeclareOption{final}{\@preprintfalse}
+\ProcessOptions\relax
+
+% Page geometry
+\RequirePackage[letterpaper,textwidth=5.5in,textheight=9in,marginparsep=7pt,marginparwidth=.6in]{geometry}
+
+% Font setup
+\RequirePackage{times}
+
+% Title formatting
+\def\@maketitle{%
+  \newpage
+  \null
+  \vskip 2em%
+  \begin{center}%
+    {\LARGE \bf \@title \par}%
+    \vskip 1.5em%
+    {\large
+      \lineskip .5em%
+      \begin{tabular}[t]{c}%
+        \@author
+      \end{tabular}\par}%
+    \vskip 1em%
+    {\large \@date}%
+  \end{center}%
+  \par
+  \vskip 1.5em}
+
+% Abstract
+\renewenvironment{abstract}%
+  {\centerline{\large\bf Abstract}\vspace{0.5ex}\begin{quote}}%
+  {\par\end{quote}\vskip 1ex}
+
+% Section formatting
+\renewcommand\section{\@startsection{section}{1}{\z@}%
+  {-2.5ex \@plus -1ex \@minus -.2ex}%
+  {1.3ex \@plus.2ex}%
+  {\normalfont\large\bf}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+  {-2.0ex\@plus -0.5ex \@minus -.2ex}%
+  {0.8ex \@plus .1ex}%
+  {\normalfont\normalsize\bf}}
+\renewcommand\subsubsection{\@startsection{subsubsection}{3}{\z@}%
+  {-1.5ex\@plus -0.5ex \@minus -.1ex}%
+  {0.5ex \@plus .1ex}%
+  {\normalfont\normalsize\it}}
+
+% Line numbers for review
+\if@preprint
+  \pagenumbering{arabic}
+\fi
+
+\endinput
