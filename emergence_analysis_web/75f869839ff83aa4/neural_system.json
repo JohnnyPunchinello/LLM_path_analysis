@@ -1,0 +1,23 @@
+{
+  "system_name": "V1 monocular columns with cross-inhibition and adaptation",
+  "brain_regions": [
+    "Primary visual cortex (V1)",
+    "Extrastriate visual cortex (V2/V4)",
+    "LGN"
+  ],
+  "neuron_types": [
+    "Layer 4 monocular simple cells",
+    "L2/3 pyramidal neurons",
+    "PV+ basket interneurons",
+    "SOM+ interneurons",
+    "LGN relay cells"
+  ],
+  "key_circuit_motifs": [
+    "mutual inhibition (cross-inhibition)",
+    "spike-frequency adaptation",
+    "recurrent excitation within population",
+    "noise-driven switching",
+    "winner-take-all competition"
+  ],
+  "description": "Two excitatory populations in early visual cortex, each driven by one eye's input via ocular-dominance columns, compete through reciprocal inhibition mediated by shared GABAergic interneurons. Recurrent excitation within each population sustains the dominant percept, while calcium-activated K+ currents produce spike-frequency adaptation that slowly fatigues the dominant pool. Background noise then allows the suppressed population to escape inhibition, generating stochastic perceptual alternations with gamma-distributed dominance durations."
+}

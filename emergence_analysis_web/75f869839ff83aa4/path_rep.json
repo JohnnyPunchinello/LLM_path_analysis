@@ -1,0 +1,3364 @@
+{
+  "time_steps": 6,
+  "intrinsic_time_scale": 3,
+  "n_paths": 100,
+  "n_routes": 48,
+  "n_modes": 1,
+  "n_feedforward_paths": 2,
+  "n_feedback_paths": 98,
+  "min_length": 3,
+  "max_length": 9,
+  "mean_length": 6.83,
+  "notes": "",
+  "paths": [
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "Extrastriate_V2V4@0",
+        "Perceptual_Dominance@0"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 3,
+      "crosses_feedback": false,
+      "weight": 0.3,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "Extrastriate_V2V4@0",
+        "Perceptual_Dominance@0"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 3,
+      "crosses_feedback": false,
+      "weight": 0.3,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.3,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "SOM_Inh_Left@0",
+        "L23_Pyr_Left@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "Adapt_Left@0",
+        "L23_Pyr_Left@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "L23_Pyr_Right@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.3,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "SOM_Inh_Right@0",
+        "L23_Pyr_Right@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "Adapt_Right@0",
+        "L23_Pyr_Right@1",
+        "Extrastriate_V2V4@1",
+        "Perceptual_Dominance@1"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.3,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "SOM_Inh_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "Adapt_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "SOM_Inh_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "SOM_Inh_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "SOM_Inh_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "SOM_Inh_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.01875,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "SOM_Inh_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.06,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "Adapt_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "Adapt_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "Adapt_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "Adapt_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.06,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "Adapt_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.192,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "L23_Pyr_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.3,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "L23_Pyr_Right@1",
+        "SOM_Inh_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "L23_Pyr_Right@1",
+        "Adapt_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "SOM_Inh_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Right@1",
+        "Adapt_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "SOM_Inh_Right@0",
+        "L23_Pyr_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "SOM_Inh_Right@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "SOM_Inh_Right@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "SOM_Inh_Right@0",
+        "L23_Pyr_Right@1",
+        "SOM_Inh_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.01875,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "SOM_Inh_Right@0",
+        "L23_Pyr_Right@1",
+        "Adapt_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.06,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "Adapt_Right@0",
+        "L23_Pyr_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "Adapt_Right@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "Adapt_Right@0",
+        "L23_Pyr_Right@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "Adapt_Right@0",
+        "L23_Pyr_Right@1",
+        "SOM_Inh_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.06,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Right@0",
+        "Adapt_Right@0",
+        "L23_Pyr_Right@1",
+        "Adapt_Right@1",
+        "L23_Pyr_Right@2",
+        "Extrastriate_V2V4@2",
+        "Perceptual_Dominance@2"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.192,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.3,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "SOM_Inh_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "Adapt_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "SOM_Inh_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Adapt_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "SOM_Inh_Right@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "Adapt_Right@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.075,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "SOM_Inh_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.01875,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "SOM_Inh_Left@1",
+        "L23_Pyr_Left@2",
+        "Adapt_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.06,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "SOM_Inh_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.06,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "L23_Pyr_Left@1",
+        "Adapt_Left@1",
+        "L23_Pyr_Left@2",
+        "Adapt_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.192,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "SOM_Inh_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.09,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "L23_Pyr_Left@2",
+        "Adapt_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.5184,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.5184,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "SOM_Inh_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.108,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Left@2",
+        "Adapt_Left@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.3456,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Left@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.5184,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "Noise@0",
+        "L23_Pyr_Left@0",
+        "PV_Inh_shared@0",
+        "L23_Pyr_Left@1",
+        "PV_Inh_shared@1",
+        "L23_Pyr_Right@2",
+        "PV_Inh_shared@2",
+        "L23_Pyr_Right@3",
+        "Extrastriate_V2V4@3",
+        "Perceptual_Dominance@3"
+      ],
+      "base_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.5184,
+      "time_span": 3
+    }
+  ],
+  "routes": [
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 4,
+      "weight": 1.2,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 3,
+      "weight": 0.8999999999999999,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 6,
+      "weight": 2.1599999999999997,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 5,
+      "weight": 1.7999999999999998,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 5,
+      "weight": 0.375,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 5,
+      "weight": 1.2,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 3,
+      "weight": 1.08,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 3,
+      "weight": 1.08,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 3,
+      "weight": 0.22499999999999998,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 3,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 4,
+      "weight": 1.728,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 4,
+      "weight": 1.728,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 3,
+      "weight": 0.27,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 3,
+      "weight": 0.8639999999999999,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.864,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.864,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.18,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.576,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.18,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.18,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.0375,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.12,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.576,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.576,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.12,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 2,
+      "weight": 0.384,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.432,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.432,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.09,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.288,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.432,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.432,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.09,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.288,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.09,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.09,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.01875,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.06,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.288,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.288,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "SOM_Inh_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.06,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Adapt_Right",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.192,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.5184,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.5184,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "SOM_Inh_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.108,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Adapt_Left",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.3456,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.5184,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "count": 1,
+      "weight": 0.5184,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    }
+  ],
+  "clusters": [
+    {
+      "cluster_id": 0,
+      "size": 46,
+      "total_count": 93,
+      "representative_chain": [
+        "Noise",
+        "L23_Pyr_Left",
+        "PV_Inh_shared",
+        "L23_Pyr_Right",
+        "PV_Inh_shared",
+        "L23_Pyr_Left",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ],
+      "mean_length": 6.913043478260869,
+      "n_feedforward": 0,
+      "n_feedback": 46,
+      "shared_units": [
+        "Noise",
+        "Extrastriate_V2V4",
+        "Perceptual_Dominance"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,333 @@
+{
+  "phenomenon_name": "Binocular rivalry",
+  "phenomenon_summary": "Two monocular cortical populations in V1 compete via shared inhibitory interneurons; spike-frequency adaptation plus noise causes stochastic alternation of perceptual dominance.",
+  "units": [
+    {
+      "name": "LeftEye_Input",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Left eye image / retinal drive"
+    },
+    {
+      "name": "RightEye_Input",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Right eye image / retinal drive"
+    },
+    {
+      "name": "LGN",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Lateral geniculate nucleus relay stage"
+    },
+    {
+      "name": "LGN_Left_relay",
+      "role": "internal",
+      "scale": 0,
+      "parent": "LGN",
+      "description": "LGN relay cells carrying left-eye signal"
+    },
+    {
+      "name": "LGN_Right_relay",
+      "role": "internal",
+      "scale": 0,
+      "parent": "LGN",
+      "description": "LGN relay cells carrying right-eye signal"
+    },
+    {
+      "name": "V1",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Primary visual cortex ocular-dominance columns"
+    },
+    {
+      "name": "L4_Left_simple",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Layer 4 monocular simple cells, left eye column"
+    },
+    {
+      "name": "L4_Right_simple",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Layer 4 monocular simple cells, right eye column"
+    },
+    {
+      "name": "L23_Pyr_Left",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "L2/3 pyramidal excitatory population selective for left eye; recurrently excitatory; subject to spike-frequency adaptation"
+    },
+    {
+      "name": "L23_Pyr_Right",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "L2/3 pyramidal excitatory population selective for right eye; recurrently excitatory; subject to spike-frequency adaptation"
+    },
+    {
+      "name": "PV_Inh_shared",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Shared PV+ basket interneurons mediating cross-inhibition between the two pyramidal populations"
+    },
+    {
+      "name": "SOM_Inh_Left",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "SOM+ interneurons providing dendritic inhibition / gain control on left population"
+    },
+    {
+      "name": "SOM_Inh_Right",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "SOM+ interneurons providing dendritic inhibition / gain control on right population"
+    },
+    {
+      "name": "Adapt_Left",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Calcium-activated K+ adaptation current fatiguing left pyramidal pool"
+    },
+    {
+      "name": "Adapt_Right",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Calcium-activated K+ adaptation current fatiguing right pyramidal pool"
+    },
+    {
+      "name": "Noise",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Background stochastic input enabling escape from inhibition"
+    },
+    {
+      "name": "Extrastriate_V2V4",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Downstream extrastriate readout of dominant population"
+    },
+    {
+      "name": "Perceptual_Dominance",
+      "role": "output",
+      "scale": 0,
+      "parent": "Extrastriate_V2V4",
+      "description": "Reported perceptual state: which eye's image is currently seen"
+    }
+  ],
+  "interactions": [
+    {
+      "source": "LeftEye_Input",
+      "target": "LGN_Left_relay",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "RightEye_Input",
+      "target": "LGN_Right_relay",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "LGN_Left_relay",
+      "target": "L4_Left_simple",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "LGN_Right_relay",
+      "target": "L4_Right_simple",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L4_Left_simple",
+      "target": "L23_Pyr_Left",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L4_Right_simple",
+      "target": "L23_Pyr_Right",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L23_Pyr_Left",
+      "target": "L23_Pyr_Left",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Recurrent excitation sustaining left dominance"
+    },
+    {
+      "source": "L23_Pyr_Right",
+      "target": "L23_Pyr_Right",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Recurrent excitation sustaining right dominance"
+    },
+    {
+      "source": "L23_Pyr_Left",
+      "target": "PV_Inh_shared",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L23_Pyr_Right",
+      "target": "PV_Inh_shared",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "PV_Inh_shared",
+      "target": "L23_Pyr_Left",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Cross-inhibition onto left pool"
+    },
+    {
+      "source": "PV_Inh_shared",
+      "target": "L23_Pyr_Right",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Cross-inhibition onto right pool"
+    },
+    {
+      "source": "L23_Pyr_Left",
+      "target": "SOM_Inh_Left",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "SOM_Inh_Left",
+      "target": "L23_Pyr_Left",
+      "weight": 0.5,
+      "recurrent": true,
+      "description": ""
+    },
+    {
+      "source": "L23_Pyr_Right",
+      "target": "SOM_Inh_Right",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "SOM_Inh_Right",
+      "target": "L23_Pyr_Right",
+      "weight": 0.5,
+      "recurrent": true,
+      "description": ""
+    },
+    {
+      "source": "L23_Pyr_Left",
+      "target": "Adapt_Left",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "Adapt_Left",
+      "target": "L23_Pyr_Left",
+      "weight": 0.8,
+      "recurrent": true,
+      "description": "Spike-frequency adaptation fatigues dominant left pool"
+    },
+    {
+      "source": "L23_Pyr_Right",
+      "target": "Adapt_Right",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "Adapt_Right",
+      "target": "L23_Pyr_Right",
+      "weight": 0.8,
+      "recurrent": true,
+      "description": "Spike-frequency adaptation fatigues dominant right pool"
+    },
+    {
+      "source": "Noise",
+      "target": "L23_Pyr_Left",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "Noise",
+      "target": "L23_Pyr_Right",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L23_Pyr_Left",
+      "target": "Extrastriate_V2V4",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L23_Pyr_Right",
+      "target": "Extrastriate_V2V4",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "Extrastriate_V2V4",
+      "target": "Perceptual_Dominance",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    }
+  ],
+  "time_steps": 6,
+  "parameters": [
+    {
+      "name": "adaptation_strength",
+      "role": "controls fatigue rate of dominant pool",
+      "value": "0.8"
+    },
+    {
+      "name": "cross_inhibition_gain",
+      "role": "strength of PV-mediated mutual inhibition",
+      "value": "1.2"
+    },
+    {
+      "name": "noise_amplitude",
+      "role": "stochastic drive enabling switches",
+      "value": "0.3"
+    },
+    {
+      "name": "input_contrast",
+      "role": "stimulus drive per eye (Levelt's propositions)",
+      "value": "1.0"
+    }
+  ],
+  "notes": "Canonical Laing-Chow 2002 rivalry motif: two recurrently-excitatory monocular pools, shared PV inhibition implementing cross-inhibition, slow adaptation currents, and noise. SOM interneurons and LGN included for biological completeness. Strong recurrent integration warrants ~6 unroll steps to capture a dominance switch."
+}

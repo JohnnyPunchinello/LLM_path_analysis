@@ -1,0 +1,15 @@
+{
+  "title": "Synaptic mechanisms and network dynamics underlying spatial working memory in a cortical network model",
+  "authors": "Compte, Brunel, Goldman-Rakic, Wang",
+  "year": 2000,
+  "venue": "Cerebral Cortex",
+  "summary": "This paper presents a biophysically detailed spiking network model of prefrontal cortex that produces stimulus-selective persistent activity \u2014 the canonical neural correlate of working memory observed in delay-period recordings by Goldman-Rakic, Funahashi, and Fuster. The model demonstrates how recurrent excitation among pyramidal neurons with similar tuning, balanced by broad feedback inhibition from interneurons, generates a stable 'bump attractor' that maintains a spatial cue across a delay period. It established the dominant circuit-level theory linking NMDA-dependent recurrent synaptic dynamics to mnemonic persistent activity in PFC.",
+  "key_findings": [
+    "Stimulus-selective persistent firing emerges from structured recurrent excitation between pyramidal cells with similar preferred directions, forming a continuous (bump) attractor on a ring of tuned neurons.",
+    "Slow NMDA receptor-mediated recurrent excitation is required for stable persistent activity; networks dominated by fast AMPA currents become unstable or synchronous.",
+    "Broad, relatively unstructured GABAergic feedback inhibition stabilizes the bump and prevents runaway excitation, implementing an effective 'Mexican-hat' connectivity.",
+    "Delay-period drift and diffusion of the bump reproduce the behavioral memory errors and tuning properties seen in monkey PFC delayed-response tasks (Funahashi/Goldman-Rakic).",
+    "Distractors with sufficiently different tuning fail to displace the memory bump, accounting for the distractor-resistance of PFC working-memory representations."
+  ],
+  "doi_or_url": "10.1093/cercor/10.9.910"
+}

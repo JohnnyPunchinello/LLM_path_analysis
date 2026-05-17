@@ -1,0 +1,28 @@
+{
+  "emergence_type": "mutual inhibition / winner-take-all with adaptation-driven alternation",
+  "type_rationale": "A single dominant mode containing only Left-eye routes (Right-eye pathway entirely suppressed) with 100% feedback traversal through an inhibitory self-loop is the canonical signature of a winner-take-all attractor; the long, loop-laden path lengths encode the adaptation that will eventually flip the winner \u2014 i.e., rivalry alternation.",
+  "dominant_features": [
+    {
+      "name": "recurrent attractor",
+      "description": "All 420 routes traverse feedback edges (feedback = 420, feedforward = 0), with mean length 13.5 on a circuit of intrinsic time scale 5 \u2014 paths loop ~2-3 times through L4_Mono_Left \u2194 SOM and recurrent excitation before reaching Percept.",
+      "metric": "feedback-traversing = 420/420 (100%); mean length 13.5 vs. shortest possible 5"
+    },
+    {
+      "name": "feedback bottleneck",
+      "description": "Every route passes through the same 6 shared units {LeftEyeImage, LGN_Left, L4_Mono_Left, Binocular_Pyr, V2_V4, Percept}, meaning Binocular_Pyr and L4_Mono_Left act as obligatory feedback hubs where mutual-inhibition / adaptation loops gate the read-out to Percept.",
+      "metric": "6 obligatory shared units across all 420 routes"
+    },
+    {
+      "name": "dominant cluster",
+      "description": "Only 1 similarity mode collapses all 1500 raw paths into 420 unique routes \u2014 the landscape is mono-modal around the Left-eye dominance branch, indicating one population is currently winning the competition and suppressing the Right-eye routes entirely.",
+      "metric": "Mode 0 = 420/420 routes (100%); 1500 raw \u2192 420 unique (3.6\u00d7 redundancy from loop re-entries)"
+    },
+    {
+      "name": "compositional loop",
+      "description": "The representative route 'L4_Mono_Left -> SOM -> L4_Mono_Left -> ...' shows a self-returning inhibitory loop: SOM interneurons repeatedly re-enter L4_Mono_Left, implementing the adaptation/suppression cycle that will eventually destabilize the current dominant state.",
+      "metric": "loop adds ~8 steps beyond the 5-step intrinsic scale"
+    }
+  ],
+  "mechanism": "Mutual inhibition between L4_Mono_Left and L4_Mono_Right (mediated by SOM/PV interneurons) collapses the path landscape onto whichever monocular population currently wins \u2014 here Left, so every one of the 420 routes is Left-eye-locked and Right-eye routes never appear in Mode 0. The feedback-only structure (0 feedforward routes) means information cannot reach Percept without re-entering the recurrent excitation + SOM inhibition loop on L4_Mono_Left, which is exactly where spike-frequency adaptation accumulates. The 13.5-step mean length on a 5-step intrinsic scale shows paths circulating ~2-3 times through this loop, building up adaptation that will eventually weaken Left's self-excitation enough for noise to flip dominance to Right \u2014 producing the perceptual alternation. Binocular_Pyr \u2192 V2_V4 \u2192 Percept acts as the obligatory read-out funnel, so only one eye's signal is reported at a time.",
+  "prediction": "If the SOM \u2192 L4_Mono_Left feedback edge is removed (or SOM interneurons are optogenetically silenced), the compositional self-loop in Mode 0 will disappear, mean path length will collapse from 13.5 toward the intrinsic scale of 5, and the landscape will split into two stable persistent modes (one Left, one Right) with no switching \u2014 observable as loss of perceptual alternation and locked dominance of whichever eye initially wins."
+}

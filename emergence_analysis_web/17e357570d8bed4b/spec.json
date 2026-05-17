@@ -1,0 +1,214 @@
+{
+  "phenomenon_name": "CA3 pattern completion",
+  "phenomenon_summary": "Partial sensory cues entering the hippocampus via entorhinal cortex are completed into the full stored memory pattern by recurrent excitation among CA3 pyramidal neurons, with the reinstated attractor pattern read out via CA1.",
+  "units": [
+    {
+      "name": "PartialCue_EC2",
+      "role": "input",
+      "scale": 0,
+      "parent": "EntorhinalCortexL2",
+      "description": "Entorhinal layer II stellate cells delivering a partial/degraded sensory cue via the perforant path."
+    },
+    {
+      "name": "EntorhinalCortexL2",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Entorhinal cortex layer II region; source of perforant path input to DG and CA3."
+    },
+    {
+      "name": "DG_GranuleCells",
+      "role": "internal",
+      "scale": 0,
+      "parent": "DentateGyrus",
+      "description": "Sparse, decorrelated granule cell code; drives CA3 via mossy fibers (detonator synapses) during encoding."
+    },
+    {
+      "name": "DG_MossyCells",
+      "role": "internal",
+      "scale": 0,
+      "parent": "DentateGyrus",
+      "description": "Hilar mossy cells providing associational excitation/inhibition within DG."
+    },
+    {
+      "name": "DentateGyrus",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Dentate gyrus region performing pattern separation prior to CA3."
+    },
+    {
+      "name": "CA3_Pyramidal",
+      "role": "internal",
+      "scale": 0,
+      "parent": "CA3",
+      "description": "CA3 pyramidal neurons forming the auto-associative recurrent collateral network with NMDAR-dependent plasticity."
+    },
+    {
+      "name": "CA3_PVBasket",
+      "role": "internal",
+      "scale": 0,
+      "parent": "CA3",
+      "description": "PV+ basket interneurons providing feedforward and feedback inhibition that controls sparsity and gain in CA3."
+    },
+    {
+      "name": "CA3",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Hippocampal CA3 region; Marr/Hopfield-style auto-associative attractor network."
+    },
+    {
+      "name": "CA1_Pyramidal",
+      "role": "internal",
+      "scale": 0,
+      "parent": "CA1",
+      "description": "CA1 pyramidal neurons reading out the completed CA3 attractor pattern via Schaffer collaterals."
+    },
+    {
+      "name": "CA1_PVBasket",
+      "role": "internal",
+      "scale": 0,
+      "parent": "CA1",
+      "description": "PV+ basket interneurons providing feedforward inhibition in CA1."
+    },
+    {
+      "name": "CA1",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Hippocampal CA1 region; output stage of the hippocampal trisynaptic loop."
+    },
+    {
+      "name": "RecalledPattern",
+      "role": "output",
+      "scale": 0,
+      "parent": "CA1",
+      "description": "Reinstated complete memory representation observed as stable CA1 place-cell/ensemble activity."
+    }
+  ],
+  "interactions": [
+    {
+      "source": "PartialCue_EC2",
+      "target": "EntorhinalCortexL2",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Cue enters EC layer II."
+    },
+    {
+      "source": "EntorhinalCortexL2",
+      "target": "DG_GranuleCells",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Perforant path to DG (pattern separation pathway)."
+    },
+    {
+      "source": "EntorhinalCortexL2",
+      "target": "CA3_Pyramidal",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Direct perforant path input to CA3 \u2014 delivers the partial cue used to seed completion."
+    },
+    {
+      "source": "EntorhinalCortexL2",
+      "target": "CA1_Pyramidal",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": "Temporoammonic perforant path to CA1."
+    },
+    {
+      "source": "DG_GranuleCells",
+      "target": "CA3_Pyramidal",
+      "weight": 1.5,
+      "recurrent": false,
+      "description": "Sparse mossy fiber detonator synapses drive CA3 (dominant during encoding)."
+    },
+    {
+      "source": "DG_GranuleCells",
+      "target": "DG_MossyCells",
+      "weight": 0.7,
+      "recurrent": false,
+      "description": "Granule cell drive to hilar mossy cells."
+    },
+    {
+      "source": "DG_MossyCells",
+      "target": "DG_GranuleCells",
+      "weight": 0.5,
+      "recurrent": true,
+      "description": "Mossy cell associational feedback to granule cells."
+    },
+    {
+      "source": "CA3_Pyramidal",
+      "target": "CA3_Pyramidal",
+      "weight": 2.0,
+      "recurrent": true,
+      "description": "Recurrent collateral excitation with NMDAR-dependent Hebbian plasticity \u2014 the auto-associative substrate of pattern completion."
+    },
+    {
+      "source": "CA3_Pyramidal",
+      "target": "CA3_PVBasket",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Recurrent drive of PV basket cells."
+    },
+    {
+      "source": "CA3_PVBasket",
+      "target": "CA3_Pyramidal",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Feedback inhibition controlling sparsity and stabilising attractor states."
+    },
+    {
+      "source": "CA3_Pyramidal",
+      "target": "CA1_Pyramidal",
+      "weight": 1.2,
+      "recurrent": false,
+      "description": "Schaffer collaterals carry the completed CA3 pattern to CA1."
+    },
+    {
+      "source": "CA3_Pyramidal",
+      "target": "CA1_PVBasket",
+      "weight": 0.7,
+      "recurrent": false,
+      "description": "Schaffer collateral feedforward inhibition via PV interneurons."
+    },
+    {
+      "source": "CA1_PVBasket",
+      "target": "CA1_Pyramidal",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": "Feedforward inhibition shaping CA1 readout."
+    },
+    {
+      "source": "CA1_Pyramidal",
+      "target": "RecalledPattern",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "CA1 ensemble activity expresses the recalled, completed memory."
+    }
+  ],
+  "time_steps": 6,
+  "parameters": [
+    {
+      "name": "cue_completeness",
+      "role": "Fraction of original cue features present at recall (controls completion difficulty).",
+      "value": "0.3"
+    },
+    {
+      "name": "CA3_recurrent_strength",
+      "role": "Effective gain of CA3->CA3 recurrent excitation; knocked down in CA3-NR1 KO.",
+      "value": "1.0 (WT) / reduced (KO)"
+    },
+    {
+      "name": "NMDAR_plasticity",
+      "role": "NMDAR-dependent Hebbian plasticity at CA3 recurrent synapses.",
+      "value": "intact / ablated"
+    },
+    {
+      "name": "sparsity",
+      "role": "Target activity sparsity enforced by PV inhibition.",
+      "value": "~2-5%"
+    }
+  ],
+  "notes": "Multiscale: cell-type units (scale 0) are grouped under region units (scale 1: DentateGyrus, CA3, CA1, EntorhinalCortexL2). Key feedback loops marked recurrent: CA3 recurrent collaterals, CA3 pyramidal<->PV basket inhibitory loop, and DG granule<->mossy cell loop. time_steps=6 reflects several iterations of recurrent CA3 dynamics needed for attractor convergence."
+}

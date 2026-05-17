@@ -1,0 +1,352 @@
+{
+  "phenomenon_name": "PFC bump-attractor working memory",
+  "phenomenon_summary": "Stimulus-selective persistent activity in dlPFC sustained by NMDA-dependent recurrent excitation among like-tuned pyramidal neurons and broad feedback inhibition, forming a continuous bump attractor that maintains a spatial cue across the delay.",
+  "units": [
+    {
+      "name": "spatial_cue_input",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Transient visuospatial cue (e.g., from posterior parietal/MD thalamus) delivering a directional input to tuned L3 pyramidal cells."
+    },
+    {
+      "name": "dlPFC_area46",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Dorsolateral PFC (principal sulcus, area 46) microcircuit hosting the bump attractor."
+    },
+    {
+      "name": "L3_pyr_pref0",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "L3 pyramidal pool tuned to direction 0\u00b0 on the ring."
+    },
+    {
+      "name": "L3_pyr_pref90",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "L3 pyramidal pool tuned to 90\u00b0."
+    },
+    {
+      "name": "L3_pyr_pref180",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "L3 pyramidal pool tuned to 180\u00b0."
+    },
+    {
+      "name": "L3_pyr_pref270",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "L3 pyramidal pool tuned to 270\u00b0."
+    },
+    {
+      "name": "PV_basket",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "PV+ fast-spiking basket interneurons providing broad, unstructured feedback inhibition (perisomatic)."
+    },
+    {
+      "name": "SST_interneuron",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "SST+ interneurons providing dendritic inhibition onto pyramidal cells."
+    },
+    {
+      "name": "CB_CR_interneuron",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "Calbindin/Calretinin interneurons mediating interneuron-targeting disinhibition."
+    },
+    {
+      "name": "L5_pyr_output",
+      "role": "internal",
+      "scale": 0,
+      "parent": "dlPFC_area46",
+      "description": "L5 pyramidal neurons reading out the L3 bump and projecting downstream."
+    },
+    {
+      "name": "delay_persistent_activity",
+      "role": "output",
+      "scale": 0,
+      "parent": null,
+      "description": "Observed stimulus-selective delay-period persistent firing (Funahashi/Goldman-Rakic delay cells)."
+    }
+  ],
+  "interactions": [
+    {
+      "source": "spatial_cue_input",
+      "target": "L3_pyr_pref0",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Cue selectively drives like-tuned pool (example: cue at 0\u00b0)."
+    },
+    {
+      "source": "spatial_cue_input",
+      "target": "L3_pyr_pref90",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": "Weaker drive to neighbors on the ring."
+    },
+    {
+      "source": "spatial_cue_input",
+      "target": "L3_pyr_pref270",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": "Weaker drive to neighbors on the ring."
+    },
+    {
+      "source": "L3_pyr_pref0",
+      "target": "L3_pyr_pref0",
+      "weight": 1.5,
+      "recurrent": true,
+      "description": "Like-to-like NMDA-dominated recurrent excitation (self-coupling within pool)."
+    },
+    {
+      "source": "L3_pyr_pref90",
+      "target": "L3_pyr_pref90",
+      "weight": 1.5,
+      "recurrent": true,
+      "description": "Like-to-like recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref180",
+      "target": "L3_pyr_pref180",
+      "weight": 1.5,
+      "recurrent": true,
+      "description": "Like-to-like recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref270",
+      "target": "L3_pyr_pref270",
+      "weight": 1.5,
+      "recurrent": true,
+      "description": "Like-to-like recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref0",
+      "target": "L3_pyr_pref90",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Recurrent excitation to neighbors on the ring (structured)."
+    },
+    {
+      "source": "L3_pyr_pref90",
+      "target": "L3_pyr_pref0",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Ring neighbor recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref90",
+      "target": "L3_pyr_pref180",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Ring neighbor recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref180",
+      "target": "L3_pyr_pref90",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Ring neighbor recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref180",
+      "target": "L3_pyr_pref270",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Ring neighbor recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref270",
+      "target": "L3_pyr_pref180",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Ring neighbor recurrent excitation."
+    },
+    {
+      "source": "L3_pyr_pref270",
+      "target": "L3_pyr_pref0",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Ring neighbor recurrent excitation (wrap-around)."
+    },
+    {
+      "source": "L3_pyr_pref0",
+      "target": "L3_pyr_pref270",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Ring neighbor recurrent excitation (wrap-around)."
+    },
+    {
+      "source": "L3_pyr_pref0",
+      "target": "PV_basket",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Pyramidal drive to PV+ basket cells."
+    },
+    {
+      "source": "L3_pyr_pref90",
+      "target": "PV_basket",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Pyramidal drive to PV+ basket cells."
+    },
+    {
+      "source": "L3_pyr_pref180",
+      "target": "PV_basket",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Pyramidal drive to PV+ basket cells."
+    },
+    {
+      "source": "L3_pyr_pref270",
+      "target": "PV_basket",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Pyramidal drive to PV+ basket cells."
+    },
+    {
+      "source": "PV_basket",
+      "target": "L3_pyr_pref0",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Broad unstructured feedback inhibition (perisomatic)."
+    },
+    {
+      "source": "PV_basket",
+      "target": "L3_pyr_pref90",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Broad feedback inhibition."
+    },
+    {
+      "source": "PV_basket",
+      "target": "L3_pyr_pref180",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Broad feedback inhibition (creates effective Mexican-hat)."
+    },
+    {
+      "source": "PV_basket",
+      "target": "L3_pyr_pref270",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Broad feedback inhibition."
+    },
+    {
+      "source": "L3_pyr_pref0",
+      "target": "SST_interneuron",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": "Pyramidal drive to SST+ dendrite-targeting interneurons."
+    },
+    {
+      "source": "L3_pyr_pref180",
+      "target": "SST_interneuron",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": "Pyramidal drive to SST+ interneurons."
+    },
+    {
+      "source": "SST_interneuron",
+      "target": "L3_pyr_pref0",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": "Dendritic inhibition onto pyramidal cells (gain control)."
+    },
+    {
+      "source": "SST_interneuron",
+      "target": "L3_pyr_pref180",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": "Dendritic inhibition onto pyramidal cells."
+    },
+    {
+      "source": "CB_CR_interneuron",
+      "target": "PV_basket",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": "Interneuron-selective inhibition / disinhibition of PV cells."
+    },
+    {
+      "source": "CB_CR_interneuron",
+      "target": "SST_interneuron",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": "Interneuron-targeting inhibition of SST cells."
+    },
+    {
+      "source": "L3_pyr_pref0",
+      "target": "L5_pyr_output",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "L3 bump read out by L5 output pyramidal neurons."
+    },
+    {
+      "source": "L3_pyr_pref90",
+      "target": "L5_pyr_output",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "L3 -> L5 readout."
+    },
+    {
+      "source": "L3_pyr_pref180",
+      "target": "L5_pyr_output",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "L3 -> L5 readout."
+    },
+    {
+      "source": "L3_pyr_pref270",
+      "target": "L5_pyr_output",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "L3 -> L5 readout."
+    },
+    {
+      "source": "L5_pyr_output",
+      "target": "delay_persistent_activity",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Observed selective persistent delay-period firing."
+    }
+  ],
+  "time_steps": 6,
+  "parameters": [
+    {
+      "name": "NMDA_fraction_recurrent",
+      "role": "Fraction of recurrent excitatory current via slow NMDA receptors \u2014 stabilizes bump.",
+      "value": "~0.8"
+    },
+    {
+      "name": "ring_size_N_E",
+      "role": "Number of tuned excitatory neurons on the ring.",
+      "value": "1024"
+    },
+    {
+      "name": "N_I",
+      "role": "Number of inhibitory interneurons.",
+      "value": "256"
+    },
+    {
+      "name": "excitatory_footprint_sigma",
+      "role": "Width of like-to-like recurrent excitation on the ring.",
+      "value": "~18\u00b0"
+    },
+    {
+      "name": "delay_duration",
+      "role": "Mnemonic delay over which the bump must persist.",
+      "value": "~3-6 s"
+    }
+  ],
+  "notes": "Ring attractor is discretized into 4 tuned pyramidal pools (0/90/180/270\u00b0) for tractability; in the full model this is a continuous ring of ~1024 neurons. PV+ inhibition is modeled as a single broad pool to capture unstructured feedback inhibition. SST and CB/CR interneurons are included to reflect interneuron diversity in dlPFC though the canonical 2000 model used a single I population. L5 pyramidal neurons serve as the readout layer for downstream projection."
+}

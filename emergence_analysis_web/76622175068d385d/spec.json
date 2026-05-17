@@ -1,0 +1,235 @@
+{
+  "phenomenon_name": "Neuronal Action Potential",
+  "phenomenon_summary": "The all-or-none membrane voltage spike that emerges from the nonlinear, voltage-dependent gating of sodium and potassium ion channels in a neuronal membrane patch.",
+  "units": [
+    {
+      "name": "stimulus_current",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "External depolarizing current injected into the membrane patch."
+    },
+    {
+      "name": "synaptic_input",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Ligand-gated channel current from upstream synapses."
+    },
+    {
+      "name": "Nav_m_gate",
+      "role": "internal",
+      "scale": 0,
+      "parent": "Nav_channel",
+      "description": "Activation gate of voltage-gated Na+ channel; opens rapidly with depolarization."
+    },
+    {
+      "name": "Nav_h_gate",
+      "role": "internal",
+      "scale": 0,
+      "parent": "Nav_channel",
+      "description": "Inactivation gate of Na+ channel; closes slowly with depolarization."
+    },
+    {
+      "name": "Nav_pore",
+      "role": "internal",
+      "scale": 1,
+      "parent": "membrane_patch",
+      "description": "Effective Na+ conductance (product of m and h gate states)."
+    },
+    {
+      "name": "Kv_n_gate",
+      "role": "internal",
+      "scale": 0,
+      "parent": "Kv_channel",
+      "description": "Activation gate of delayed-rectifier K+ channel; opens slowly with depolarization."
+    },
+    {
+      "name": "Kv_pore",
+      "role": "internal",
+      "scale": 1,
+      "parent": "membrane_patch",
+      "description": "Effective K+ conductance from delayed rectifier channels."
+    },
+    {
+      "name": "leak_channel",
+      "role": "internal",
+      "scale": 1,
+      "parent": "membrane_patch",
+      "description": "Passive leak conductance setting resting potential."
+    },
+    {
+      "name": "Na_current",
+      "role": "internal",
+      "scale": 1,
+      "parent": "membrane_patch",
+      "description": "Inward Na+ current driven by gradient and Nav conductance."
+    },
+    {
+      "name": "K_current",
+      "role": "internal",
+      "scale": 1,
+      "parent": "membrane_patch",
+      "description": "Outward K+ current driven by gradient and Kv conductance."
+    },
+    {
+      "name": "membrane_capacitance",
+      "role": "internal",
+      "scale": 1,
+      "parent": "membrane_patch",
+      "description": "Integrates net current into a voltage change across the lipid bilayer."
+    },
+    {
+      "name": "membrane_voltage",
+      "role": "internal",
+      "scale": 1,
+      "parent": "membrane_patch",
+      "description": "Transmembrane potential Vm; the state variable that gates channels."
+    },
+    {
+      "name": "spike_output",
+      "role": "output",
+      "scale": 2,
+      "parent": "neuron",
+      "description": "Detected action potential: the emergent all-or-none voltage spike propagated downstream."
+    }
+  ],
+  "interactions": [
+    {
+      "source": "stimulus_current",
+      "target": "membrane_capacitance",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Injected current charges the membrane."
+    },
+    {
+      "source": "synaptic_input",
+      "target": "membrane_capacitance",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": "Synaptic current contributes to charging."
+    },
+    {
+      "source": "membrane_capacitance",
+      "target": "membrane_voltage",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Integrated charge becomes voltage (V = Q/C)."
+    },
+    {
+      "source": "membrane_voltage",
+      "target": "Nav_m_gate",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Depolarization rapidly opens activation gate."
+    },
+    {
+      "source": "membrane_voltage",
+      "target": "Nav_h_gate",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Sustained depolarization slowly closes inactivation gate."
+    },
+    {
+      "source": "membrane_voltage",
+      "target": "Kv_n_gate",
+      "weight": 0.7,
+      "recurrent": true,
+      "description": "Depolarization slowly opens K+ activation gate."
+    },
+    {
+      "source": "Nav_m_gate",
+      "target": "Nav_pore",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "m^3 term sets channel openness."
+    },
+    {
+      "source": "Nav_h_gate",
+      "target": "Nav_pore",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "h term gates inactivation."
+    },
+    {
+      "source": "Kv_n_gate",
+      "target": "Kv_pore",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "n^4 term sets K+ conductance."
+    },
+    {
+      "source": "Nav_pore",
+      "target": "Na_current",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Conductance times driving force gives I_Na."
+    },
+    {
+      "source": "Kv_pore",
+      "target": "K_current",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Conductance times driving force gives I_K."
+    },
+    {
+      "source": "leak_channel",
+      "target": "membrane_voltage",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": "Leak current pulls Vm toward rest."
+    },
+    {
+      "source": "Na_current",
+      "target": "membrane_capacitance",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Inward Na+ further depolarizes \u2014 positive feedback core of the spike."
+    },
+    {
+      "source": "K_current",
+      "target": "membrane_capacitance",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Outward K+ repolarizes \u2014 negative feedback that terminates the spike."
+    },
+    {
+      "source": "membrane_voltage",
+      "target": "spike_output",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Threshold crossing is read out as an action potential."
+    },
+    {
+      "source": "spike_output",
+      "target": "Nav_h_gate",
+      "weight": 0.5,
+      "recurrent": true,
+      "description": "Post-spike inactivation enforces the refractory period."
+    }
+  ],
+  "time_steps": 6,
+  "parameters": [
+    {
+      "name": "g_Na_max",
+      "role": "Maximum sodium conductance \u2014 sets spike amplitude and excitability.",
+      "value": "120 mS/cm^2"
+    },
+    {
+      "name": "g_K_max",
+      "role": "Maximum potassium conductance \u2014 controls repolarization speed.",
+      "value": "36 mS/cm^2"
+    },
+    {
+      "name": "temperature",
+      "role": "Scales gating kinetics (Q10 factor).",
+      "value": "6.3 C"
+    },
+    {
+      "name": "stimulus_amplitude",
+      "role": "Drives the system above or below firing threshold.",
+      "value": "variable"
+    }
+  ],
+  "notes": "Hodgkin\u2013Huxley-style abstraction. The action potential emerges from a fast positive-feedback loop (Vm \u2192 Nav_m \u2192 Na_current \u2192 Vm) bounded by two slower negative-feedback loops (Nav inactivation and Kv activation). Multiscale hierarchy: gates \u2192 channels \u2192 membrane patch \u2192 neuron."
+}

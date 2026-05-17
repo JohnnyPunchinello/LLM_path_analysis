@@ -1,0 +1,15 @@
+{
+  "title": "Transgenic inhibition of synaptic transmission reveals role of CA3 output in hippocampal learning",
+  "authors": "Nakazawa, Quirk, Chitwood, Watanabe, Yeckel, Sun, Kato, Carr, Johnston, Wilson, Tonegawa",
+  "year": 2002,
+  "venue": "Science",
+  "summary": "This paper provides the foundational experimental evidence that the recurrent CA3 network of the hippocampus implements pattern completion. By selectively knocking out NMDA receptors in CA3 pyramidal cells, the authors showed that mice could still form spatial memories under full-cue conditions but failed to recall them when given only partial environmental cues. This established the CA3 auto-associative recurrent collateral circuit as the substrate for pattern completion, validating the Marr/Hopfield-style attractor network theory of hippocampal memory.",
+  "key_findings": [
+    "CA3 pyramidal neurons form a densely recurrent (auto-associative) network via recurrent collaterals, theorized by Marr to support pattern completion",
+    "NMDA receptor-dependent plasticity at CA3-CA3 recurrent synapses is required for retrieval from partial cues, but not for encoding or full-cue recall",
+    "CA3-specific NR1 knockout mice showed normal spatial memory with full cues but impaired recall when 3 of 4 extramaze cues were removed",
+    "Place cell representations in CA1 (driven by CA3) were destabilized under partial-cue conditions in the mutants, linking the circuit deficit to representational pattern completion",
+    "Provides direct circuit-level evidence that CA3 acts as an attractor network performing pattern completion, complementary to pattern separation in the dentate gyrus"
+  ],
+  "doi_or_url": "10.1126/science.1071795"
+}

@@ -1,0 +1,14 @@
+{
+  "title": "Pattern separation and pattern completion in the hippocampal system: Investigation of CA3 pattern completion using a custom-built large-scale model",
+  "authors": "Nakazawa, Quirk, Chitwood, Watanabe, Yeckel, Sun, Kato, Carr, Johnston, Wilson, Tonegawa",
+  "year": 2002,
+  "venue": "Science",
+  "summary": "This study used CA3-specific NMDA receptor knockout mice to show that the recurrent collateral network of hippocampal CA3 pyramidal cells supports pattern completion \u2014 the ability to recall a complete memory representation from a partial sensory cue. Place cell recordings and behavioral memory tests demonstrated that when familiar environmental cues were partially removed, control mice maintained stable place fields and spatial memory, whereas CA3-NR1 knockouts failed, implicating CA3 recurrent synapses and their plasticity as the circuit substrate of pattern completion.",
+  "key_findings": [
+    "CA3 pyramidal neurons form an auto-associative recurrent collateral network hypothesized by Marr/Hopfield-style models to perform pattern completion.",
+    "Genetic deletion of NMDA receptors specifically in CA3 impaired recall when only a subset of original spatial cues was available, while full-cue recall was intact.",
+    "Place field stability in CA3 under degraded-cue conditions depended on NMDAR-mediated plasticity at recurrent synapses.",
+    "Provides causal circuit-level evidence linking CA3 recurrent connectivity and synaptic plasticity to associative memory recall from partial cues."
+  ],
+  "doi_or_url": "10.1126/science.1071795"
+}

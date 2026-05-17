@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="refresh" content="3" />
+  <title>Still running…</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="container">
+  <header><h1>Still running…</h1></header>
+  <p class="subtitle">Job <code>{{ job_id }}</code> hasn't finished yet.
+    This page will refresh automatically.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,314 @@
+{
+  "phenomenon_name": "Binocular rivalry",
+  "phenomenon_summary": "Perception alternates between two competing monocular images due to mutual inhibition between eye-specific V1 populations, slow spike-frequency adaptation, and noise.",
+  "units": [
+    {
+      "name": "LeftEyeImage",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Visual stimulus presented to the left eye"
+    },
+    {
+      "name": "RightEyeImage",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Visual stimulus presented to the right eye"
+    },
+    {
+      "name": "LGN",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Lateral geniculate nucleus relaying eye-specific input"
+    },
+    {
+      "name": "LGN_Left",
+      "role": "internal",
+      "scale": 0,
+      "parent": "LGN",
+      "description": "LGN relay neurons carrying left-eye signal"
+    },
+    {
+      "name": "LGN_Right",
+      "role": "internal",
+      "scale": 0,
+      "parent": "LGN",
+      "description": "LGN relay neurons carrying right-eye signal"
+    },
+    {
+      "name": "V1",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Primary visual cortex containing competing monocular populations"
+    },
+    {
+      "name": "L4_Mono_Left",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Layer 4 monocular excitatory neurons driven by the left eye"
+    },
+    {
+      "name": "L4_Mono_Right",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Layer 4 monocular excitatory neurons driven by the right eye"
+    },
+    {
+      "name": "Adapt_Left",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Slow spike-frequency adaptation current in left population"
+    },
+    {
+      "name": "Adapt_Right",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Slow spike-frequency adaptation current in right population"
+    },
+    {
+      "name": "PV_Left",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "PV+ basket interneurons mediating inhibition from left population"
+    },
+    {
+      "name": "PV_Right",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "PV+ basket interneurons mediating inhibition from right population"
+    },
+    {
+      "name": "SOM",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "SOM+ interneurons providing cross-orientation/interocular suppression"
+    },
+    {
+      "name": "Noise",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Intrinsic stochastic fluctuations driving switch timing"
+    },
+    {
+      "name": "Binocular_Pyr",
+      "role": "internal",
+      "scale": 0,
+      "parent": "V1",
+      "description": "Binocular pyramidal neurons reading out the winning monocular population"
+    },
+    {
+      "name": "V2_V4",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Extrastriate cortex relaying dominant percept downstream"
+    },
+    {
+      "name": "Percept",
+      "role": "output",
+      "scale": 0,
+      "parent": null,
+      "description": "Currently dominant perceptual interpretation (left- vs right-eye image)"
+    }
+  ],
+  "interactions": [
+    {
+      "source": "LeftEyeImage",
+      "target": "LGN_Left",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "RightEyeImage",
+      "target": "LGN_Right",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "LGN_Left",
+      "target": "L4_Mono_Left",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "LGN_Right",
+      "target": "L4_Mono_Right",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L4_Mono_Left",
+      "target": "L4_Mono_Left",
+      "weight": 0.8,
+      "recurrent": true,
+      "description": "Recurrent excitation within left monocular population"
+    },
+    {
+      "source": "L4_Mono_Right",
+      "target": "L4_Mono_Right",
+      "weight": 0.8,
+      "recurrent": true,
+      "description": "Recurrent excitation within right monocular population"
+    },
+    {
+      "source": "L4_Mono_Left",
+      "target": "PV_Left",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L4_Mono_Right",
+      "target": "PV_Right",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "PV_Left",
+      "target": "L4_Mono_Right",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Cross-inhibition suppressing the opposing eye population"
+    },
+    {
+      "source": "PV_Right",
+      "target": "L4_Mono_Left",
+      "weight": 1.2,
+      "recurrent": true,
+      "description": "Cross-inhibition suppressing the opposing eye population"
+    },
+    {
+      "source": "L4_Mono_Left",
+      "target": "SOM",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L4_Mono_Right",
+      "target": "SOM",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "SOM",
+      "target": "L4_Mono_Left",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": "Interocular suppression"
+    },
+    {
+      "source": "SOM",
+      "target": "L4_Mono_Right",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": "Interocular suppression"
+    },
+    {
+      "source": "L4_Mono_Left",
+      "target": "Adapt_Left",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Activity builds slow adaptation current"
+    },
+    {
+      "source": "L4_Mono_Right",
+      "target": "Adapt_Right",
+      "weight": 1.0,
+      "recurrent": true,
+      "description": "Activity builds slow adaptation current"
+    },
+    {
+      "source": "Adapt_Left",
+      "target": "L4_Mono_Left",
+      "weight": 0.9,
+      "recurrent": true,
+      "description": "Spike-frequency adaptation weakens dominant population"
+    },
+    {
+      "source": "Adapt_Right",
+      "target": "L4_Mono_Right",
+      "weight": 0.9,
+      "recurrent": true,
+      "description": "Spike-frequency adaptation weakens dominant population"
+    },
+    {
+      "source": "Noise",
+      "target": "L4_Mono_Left",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "Noise",
+      "target": "L4_Mono_Right",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L4_Mono_Left",
+      "target": "Binocular_Pyr",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "L4_Mono_Right",
+      "target": "Binocular_Pyr",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "Binocular_Pyr",
+      "target": "V2_V4",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "V2_V4",
+      "target": "Percept",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    }
+  ],
+  "time_steps": 7,
+  "parameters": [
+    {
+      "name": "adaptation_timescale",
+      "role": "slow negative feedback setting dominance duration",
+      "value": "~1-3 s"
+    },
+    {
+      "name": "noise_amplitude",
+      "role": "stochastic driver of switch timing",
+      "value": "moderate"
+    },
+    {
+      "name": "mutual_inhibition_strength",
+      "role": "controls winner-take-all competition",
+      "value": "strong"
+    }
+  ],
+  "notes": "Two symmetric eye-specific populations compete via PV-mediated cross-inhibition; slow adaptation plus noise produces gamma-distributed alternations. SOM neurons modeled as shared interocular suppression pool."
+}

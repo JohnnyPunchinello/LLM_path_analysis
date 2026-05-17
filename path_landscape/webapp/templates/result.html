@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ phenomenon }} - path landscape</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="container">
+  <a href="{{ url_for('index') }}" class="back">&larr; new analysis</a>
+
+  <header class="result-header">
+    <h1>{{ phenomenon }}</h1>
+    <p class="subtitle">{{ phenomenon_summary }}</p>
+  </header>
+
+  {# ───────────────────────────── ontology key ───────────────────────────── #}
+  {# Names what the diagram is showing in framework terms.  Always present. #}
+  <section class="ontology-section">
+    <h2>What this analysis is showing</h2>
+    <dl class="ontology-grid">
+      <div class="onto-row">
+        <dt>System</dt>
+        <dd>The phenomenon, encoded as a directed graph of computing units.
+          <span class="onto-meta">{{ system_summary }}</span>
+        </dd>
+      </div>
+      <div class="onto-row">
+        <dt>Unit <span class="onto-tag">basic computation</span></dt>
+        <dd>One node in the graph. Roles:
+          <span class="role-pill role-input">input</span> (where signal enters),
+          <span class="role-pill role-internal">internal</span> (substrate that produces the phenomenon),
+          <span class="role-pill role-output">output</span> (where the phenomenon is observed).
+          <span class="onto-meta">
+            {{ spec.units | length }} units total
+            ({{ spec.units | selectattr('role','equalto','input') | list | length }} in ·
+            {{ spec.units | selectattr('role','equalto','internal') | list | length }} int ·
+            {{ spec.units | selectattr('role','equalto','output') | list | length }} out)
+          </span>
+        </dd>
+      </div>
+      <div class="onto-row">
+        <dt>Interaction <span class="onto-tag">information flow</span></dt>
+        <dd>One directed edge source→target. <em>Recurrent</em> edges fire at the
+          next time step (feedback loops). Each edge carries a weight.
+          <span class="onto-meta">
+            {{ spec.interactions | length }} edges total
+            ({{ spec.interactions | selectattr('recurrent') | list | length }} recurrent)
+          </span>
+        </dd>
+      </div>
+      <div class="onto-row">
+        <dt>Multiscale structure</dt>
+        <dd>Units carry a <em>scale</em> integer and an optional <em>parent</em>.
+          Scales &gt; 0 form a hierarchy of coarser modules over the finer units.
+          <span class="onto-meta">
+            scales present:
+            {% set scales = spec.units | map(attribute='scale') | list | unique | list %}
+            {{ scales | sort | join(', ') }}
+            {% if scales | length > 1 %} — hierarchical{% else %} — single scale{% endif %}
+          </span>
+        </dd>
+      </div>
+      <div class="onto-row">
+        <dt>Observable</dt>
+        <dd>Each <em>path</em> from an input unit to an output unit is one
+          observation of the system. The distribution of these paths is the
+          <strong>path landscape</strong>.
+          <span class="onto-meta">
+            outputs:
+            {% for u in spec.units if u.role == 'output' %}
+              <code>{{ u.name }}</code>{% if not loop.last %}, {% endif %}
+            {% else %}(none specified){% endfor %}
+          </span>
+        </dd>
+      </div>
+      <div class="onto-row">
+        <dt>Emergent phenomenon</dt>
+        <dd>Read off the path landscape as: clusters of similar paths (<em>modes</em>),
+          compositional loops (<em>H₁ features</em>), and hubs / shared
+          intermediates (<em>meta-graph connectivity</em>).
+          <span class="onto-meta">{{ landscape_summary }}</span>
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  {% if partial %}
+  <section class="partial-banner">
+    <strong>⚠ Path landscape not available for this run.</strong>
+    Path extraction returned no paths from inputs to outputs after unrolling.
+    The figure below shows the System and the unrolled graph so the
+    connectivity gap is visible; the mechanistic interpretation explains the
+    structural cut.
+    {% if partial_error %}
+    <details><summary>technical detail</summary>
+      <pre>{{ partial_error }}</pre>
+    </details>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="figure-section">
+    <img src="{{ url_for('file', job_id=job_id, filename='landscape.png') }}"
+         alt="Path-landscape figure for {{ phenomenon }}" />
+    <p class="figure-caption">
+      <strong>How to read this figure.</strong>
+      Top row: ontology key (left) and the original system graph (right).
+      {% if not partial %}
+      Middle row: the unrolled path graph and the path landscape (each point
+      is one input→output path; colour = cluster / mode).
+      Bottom row: paths grouped by cluster (length on y-axis) and the
+      persistence diagram (topological signature of the landscape).
+      {% else %}
+      Bottom row: the unrolled path graph and a diagnostic panel explaining
+      why no paths were found. Re-specify the system to close the cut.
+      {% endif %}
+    </p>
+  </section>
+
+  {% if metrics %}
+  <section class="metrics-section">
+    <h2>Landscape metrics</h2>
+    <p class="section-lede">Observables computed on the path landscape.</p>
+    <div class="metrics-grid">
+      <div class="metric">
+        <div class="value">{{ metrics.n_modes }}</div>
+        <div class="label">modes (clusters)</div>
+      </div>
+      <div class="metric">
+        <div class="value">
+          {% if metrics.size_exponent is none or metrics.size_exponent != metrics.size_exponent %}—
+          {% else %}{{ "%.2f"|format(metrics.size_exponent) }}{% endif %}
+        </div>
+        <div class="label">size exponent α</div>
+      </div>
+      <div class="metric">
+        <div class="value">{{ "%.3f"|format(metrics.h0_max) }}</div>
+        <div class="label">H₀ max persistence</div>
+      </div>
+      <div class="metric">
+        <div class="value">
+          {% if metrics.h1_count is none %}—{% else %}{{ metrics.h1_count }}{% endif %}
+        </div>
+        <div class="label">H₁ features</div>
+      </div>
+      <div class="metric">
+        <div class="value">{{ "%.3f"|format(metrics.h1_max_persistence) }}</div>
+        <div class="label">H₁ max persistence</div>
+      </div>
+      <div class="metric">
+        <div class="value">{{ "%.3f"|format(metrics.meta.giant_fraction) }}</div>
+        <div class="label">meta giant fraction</div>
+      </div>
+      <div class="metric">
+        <div class="value">{{ "%.3f"|format(metrics.meta.density) }}</div>
+        <div class="label">meta density</div>
+      </div>
+      <div class="metric">
+        <div class="value">{{ metrics.n_paths }}</div>
+        <div class="label">paths sampled</div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="interpretation-section">
+    <h2>Mechanistic interpretation
+      <span class="onto-tag">path-structural</span></h2>
+    <p class="section-lede">
+      The mechanism that produces (or fails to produce) emergence in this
+      system, expressed in terms of clusters, hubs, loops, hierarchy, and
+      recurrence.
+    </p>
+    <div class="interpretation">{{ interpretation_html | safe }}</div>
+  </section>
+
+  <section class="spec-section">
+    <h2>System specification</h2>
+    <p class="section-lede">The full unit/interaction list Claude produced.</p>
+    <details open>
+      <summary>Units ({{ spec.units | length }})</summary>
+      <table class="spec-table">
+        <thead>
+          <tr><th>name</th><th>role</th><th>scale</th><th>parent</th><th>description</th></tr>
+        </thead>
+        <tbody>
+        {% for u in spec.units %}
+          <tr>
+            <td><code>{{ u.name }}</code></td>
+            <td><span class="role-pill role-{{ u.role }}">{{ u.role }}</span></td>
+            <td>{{ u.scale }}</td>
+            <td>{{ u.parent or '' }}</td>
+            <td>{{ u.description }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    <details>
+      <summary>Interactions ({{ spec.interactions | length }})</summary>
+      <table class="spec-table">
+        <thead>
+          <tr><th>source</th><th>target</th><th>weight</th><th>recurrent</th><th>description</th></tr>
+        </thead>
+        <tbody>
+        {% for it in spec.interactions %}
+          <tr>
+            <td><code>{{ it.source }}</code></td>
+            <td><code>{{ it.target }}</code></td>
+            <td>{{ "%.2f"|format(it.weight) }}</td>
+            <td>{{ "✓" if it.recurrent else "" }}</td>
+            <td>{{ it.description }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    {% if spec.parameters %}
+    <details>
+      <summary>External parameters ({{ spec.parameters | length }})</summary>
+      <ul class="param-list">
+        {% for p in spec.parameters %}
+        <li><code>{{ p.name }}</code>{% if p.value %} = {{ p.value }}{% endif %} - {{ p.role }}</li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% if spec.notes %}
+    <p class="notes"><strong>Notes:</strong> {{ spec.notes }}</p>
+    {% endif %}
+  </section>
+
+  <section class="downloads">
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='report.md') }}"
+       download>report.md</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='spec.json') }}"
+       download>spec.json</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='landscape.png') }}"
+       download>landscape.png</a>
+  </section>
+</main>
+</body>
+</html>

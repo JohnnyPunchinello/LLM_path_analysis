@@ -1,0 +1,305 @@
+{
+  "phenomenon_name": "LLM Emergent Abilities",
+  "phenomenon_summary": "Large language models exhibit abrupt qualitative jumps in capabilities (arithmetic, chain-of-thought reasoning, instruction following) once scale crosses certain thresholds, despite smooth changes in training loss.",
+  "units": [
+    {
+      "name": "prompt_tokens",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Input token sequence from user"
+    },
+    {
+      "name": "in_context_examples",
+      "role": "input",
+      "scale": 0,
+      "parent": null,
+      "description": "Few-shot demonstrations provided in context"
+    },
+    {
+      "name": "embed",
+      "role": "internal",
+      "scale": 0,
+      "parent": "lower_block",
+      "description": "Token + positional embeddings"
+    },
+    {
+      "name": "attn_head_induction",
+      "role": "internal",
+      "scale": 0,
+      "parent": "lower_block",
+      "description": "Induction heads that copy patterns across context"
+    },
+    {
+      "name": "attn_head_syntactic",
+      "role": "internal",
+      "scale": 0,
+      "parent": "lower_block",
+      "description": "Heads specialized for syntactic structure"
+    },
+    {
+      "name": "mlp_lower",
+      "role": "internal",
+      "scale": 0,
+      "parent": "lower_block",
+      "description": "Lower MLP storing surface features and n-gram statistics"
+    },
+    {
+      "name": "attn_head_retrieval",
+      "role": "internal",
+      "scale": 0,
+      "parent": "mid_block",
+      "description": "Heads that retrieve facts and entities from context"
+    },
+    {
+      "name": "attn_head_composition",
+      "role": "internal",
+      "scale": 0,
+      "parent": "mid_block",
+      "description": "Heads composing intermediate representations"
+    },
+    {
+      "name": "mlp_mid_facts",
+      "role": "internal",
+      "scale": 0,
+      "parent": "mid_block",
+      "description": "Mid MLP layers acting as key-value factual memory"
+    },
+    {
+      "name": "attn_head_reasoning",
+      "role": "internal",
+      "scale": 0,
+      "parent": "upper_block",
+      "description": "Heads implementing multi-step reasoning circuits"
+    },
+    {
+      "name": "mlp_upper_abstract",
+      "role": "internal",
+      "scale": 0,
+      "parent": "upper_block",
+      "description": "Upper MLP encoding abstract task representations"
+    },
+    {
+      "name": "task_representation",
+      "role": "internal",
+      "scale": 0,
+      "parent": "upper_block",
+      "description": "Latent representation of the inferred task"
+    },
+    {
+      "name": "lower_block",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Lower transformer layers: tokens, syntax, surface patterns"
+    },
+    {
+      "name": "mid_block",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Middle transformer layers: facts, entities, composition"
+    },
+    {
+      "name": "upper_block",
+      "role": "internal",
+      "scale": 1,
+      "parent": null,
+      "description": "Upper transformer layers: abstraction, reasoning, task inference"
+    },
+    {
+      "name": "next_token_logits",
+      "role": "output",
+      "scale": 0,
+      "parent": null,
+      "description": "Distribution over next token"
+    },
+    {
+      "name": "emergent_capability",
+      "role": "output",
+      "scale": 1,
+      "parent": null,
+      "description": "Observed capability: CoT reasoning, arithmetic, instruction-following"
+    }
+  ],
+  "interactions": [
+    {
+      "source": "prompt_tokens",
+      "target": "embed",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "in_context_examples",
+      "target": "embed",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "embed",
+      "target": "attn_head_induction",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "embed",
+      "target": "attn_head_syntactic",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "embed",
+      "target": "mlp_lower",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "attn_head_syntactic",
+      "target": "mlp_lower",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "attn_head_induction",
+      "target": "attn_head_retrieval",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Induction heads enable in-context retrieval"
+    },
+    {
+      "source": "mlp_lower",
+      "target": "attn_head_retrieval",
+      "weight": 0.7,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "mlp_lower",
+      "target": "attn_head_composition",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "attn_head_retrieval",
+      "target": "mlp_mid_facts",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "attn_head_composition",
+      "target": "mlp_mid_facts",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "mlp_mid_facts",
+      "target": "attn_head_reasoning",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "attn_head_composition",
+      "target": "attn_head_reasoning",
+      "weight": 0.9,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "attn_head_reasoning",
+      "target": "mlp_upper_abstract",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "mlp_upper_abstract",
+      "target": "task_representation",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "in_context_examples",
+      "target": "task_representation",
+      "weight": 0.6,
+      "recurrent": false,
+      "description": "Few-shot examples shape inferred task"
+    },
+    {
+      "source": "task_representation",
+      "target": "attn_head_reasoning",
+      "weight": 0.7,
+      "recurrent": true,
+      "description": "Inferred task feeds back to bias reasoning"
+    },
+    {
+      "source": "task_representation",
+      "target": "next_token_logits",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "mlp_upper_abstract",
+      "target": "next_token_logits",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "next_token_logits",
+      "target": "prompt_tokens",
+      "weight": 0.9,
+      "recurrent": true,
+      "description": "Autoregressive generation; CoT tokens re-enter context"
+    },
+    {
+      "source": "next_token_logits",
+      "target": "emergent_capability",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "task_representation",
+      "target": "emergent_capability",
+      "weight": 0.5,
+      "recurrent": false,
+      "description": ""
+    }
+  ],
+  "time_steps": 5,
+  "parameters": [
+    {
+      "name": "parameter_count",
+      "role": "Model scale (number of parameters); primary knob for emergence thresholds",
+      "value": "1e8 to 1e12"
+    },
+    {
+      "name": "training_tokens",
+      "role": "Pretraining data scale; co-determines capability thresholds",
+      "value": "1e10 to 1e13"
+    },
+    {
+      "name": "num_in_context_examples",
+      "role": "Few-shot k; controls task inference sharpness",
+      "value": "0 to 32"
+    },
+    {
+      "name": "decoding_temperature",
+      "role": "Sampling stochasticity at output",
+      "value": "0.0 to 1.0"
+    }
+  ],
+  "notes": "Abstraction of a decoder-only transformer. Three hierarchical 'blocks' approximate the empirical lower/middle/upper layer specialization. Recurrent edges capture (a) autoregressive CoT where generated tokens re-enter the prompt and (b) task-representation feedback biasing reasoning circuits. Emergence is hypothesized to arise when induction-head + retrieval + reasoning circuits all cross competence thresholds jointly with scale."
+}

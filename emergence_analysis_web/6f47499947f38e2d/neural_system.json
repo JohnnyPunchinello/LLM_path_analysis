@@ -1,0 +1,22 @@
+{
+  "system_name": "Prefrontal cortex bump-attractor working memory circuit",
+  "brain_regions": [
+    "Dorsolateral prefrontal cortex (dlPFC)",
+    "Principal sulcus (area 46)"
+  ],
+  "neuron_types": [
+    "L3 pyramidal neurons (tuned excitatory)",
+    "L5 pyramidal neurons",
+    "PV+ fast-spiking basket interneurons",
+    "SST+ interneurons",
+    "Calbindin/Calretinin interneurons"
+  ],
+  "key_circuit_motifs": [
+    "Structured recurrent excitation (like-to-like)",
+    "Broad feedback inhibition",
+    "Effective Mexican-hat lateral inhibition",
+    "Continuous ring/bump attractor",
+    "NMDA-dependent slow recurrent synaptic dynamics"
+  ],
+  "description": "Stimulus-selective persistent activity in dlPFC arises from a cortical microcircuit in which pyramidal neurons with similar preferred directions excite one another via NMDA-dominated recurrent synapses, while PV+ basket cells provide broad, relatively unstructured feedback inhibition. The resulting effective Mexican-hat connectivity supports a continuous (bump) attractor on a ring of tuned neurons that maintains a spatial cue across the delay period. Slow NMDA kinetics stabilize the bump against synchronous instabilities, and the broad inhibition confers distractor resistance, reproducing Funahashi/Goldman-Rakic delay-cell properties."
+}

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{{ phenomenon }} — neural-circuit path representation</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="container">
+  <a href="{{ url_for('neural_index') }}" class="back">&larr; new neural analysis</a>
+
+  <header class="result-header">
+    <h1>{{ phenomenon }}</h1>
+    <p class="subtitle">{{ phenomenon_input }}</p>
+  </header>
+
+  {# ============================== Agent 4 — path representation =========== #}
+  {# The user-requested centrepiece: show the path representation first. #}
+  <section class="figure-section path-figure-section">
+    <div class="section-eyebrow">
+      <span class="agent-tag agent-4">Agent 4</span>
+      <span class="section-name">Path representation</span>
+    </div>
+    <h2>The path landscape: input → output paths, clustered by similarity</h2>
+    <p class="section-lede">
+      The path landscape is the distribution of routes from
+      <strong>INPUT</strong> to <strong>OUTPUT</strong>, grouped into
+      <strong>similarity modes</strong>. Two routes are similar if they
+      share many of the same nodes and edges (composite edge-Jaccard +
+      longest-common-subsequence overlap). Each mode in the figure
+      below is one horizontal band: the bold centerline is the
+      cluster's <em>representative</em> route, the faint translucent
+      lines around it are the other members of the cluster (the
+      <em>bundle</em>), and the prominent <span style="color:#d49a2e;
+      font-weight:600">amber circles</span> mark the <em>shared anchor
+      units</em> — units that appear in every member route of the
+      mode and are therefore its structural signature. Solid =
+      feedforward-only; dashed = traverses at least one recurrent
+      edge.
+    </p>
+    <img src="{{ url_for('file', job_id=job_id, filename='paths.png') }}"
+         alt="Path landscape (cluster bundles) for {{ phenomenon }}"
+         loading="eager" />
+
+    <details class="routes-fallback">
+      <summary>Show every individual route (per-route lane view)</summary>
+      <p class="section-lede" style="margin-top:8px;">
+        Per-route view: one lane per distinct route, grouped by cluster
+        with a left-margin bracket. Useful for inspecting specific
+        routes that the bundle view groups together.
+      </p>
+      <img src="{{ url_for('file', job_id=job_id, filename='routes.png') }}"
+           alt="Per-route lane view for {{ phenomenon }}"
+           loading="lazy" />
+    </details>
+
+    {% if path_rep.clusters %}
+    <div class="mode-cards">
+      {% for c in path_rep.clusters | sort(attribute='size', reverse=True) %}
+      <div class="mode-card mode-{{ c.cluster_id % 10 }}">
+        <div class="mode-card-head">
+          <span class="mode-pill">Mode {{ c.cluster_id }}</span>
+          <span class="mode-count">{{ c.size }} routes  ·  ×{{ c.total_count }} raw paths</span>
+        </div>
+        <div class="mode-card-body">
+          <div class="mode-meta">
+            mean length: <strong>{{ "%.1f"|format(c.mean_length) }}</strong>  ·
+            feedforward: <strong>{{ c.n_feedforward }}</strong>  ·
+            feedback: <strong>{{ c.n_feedback }}</strong>
+          </div>
+          <div class="mode-shared">
+            <span class="shared-label">shared units:</span>
+            {% for u in c.shared_units %}
+              <code>{{ u }}</code>{% if not loop.last %} ·{% endif %}
+            {% else %}
+              <span class="empty">(none beyond input/output)</span>
+            {% endfor %}
+          </div>
+          <div class="mode-rep">
+            <span class="shared-label">representative:</span>
+            <code>{{ c.representative_chain | join(' → ') }}</code>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="path-stats">
+      <div class="stat">
+        <div class="value">{{ path_rep.intrinsic_time_scale }}</div>
+        <div class="label">intrinsic time scale</div>
+      </div>
+      <div class="stat">
+        <div class="value">{{ path_rep.time_steps }}</div>
+        <div class="label">unroll steps (T)</div>
+      </div>
+      <div class="stat">
+        <div class="value">{{ path_rep.n_paths }}</div>
+        <div class="label">paths total</div>
+      </div>
+      <div class="stat">
+        <div class="value">{{ path_rep.n_feedforward_paths }}</div>
+        <div class="label">feedforward-only</div>
+      </div>
+      <div class="stat">
+        <div class="value">{{ path_rep.n_feedback_paths }}</div>
+        <div class="label">feedback-traversing</div>
+      </div>
+      <div class="stat">
+        <div class="value">{{ path_rep.min_length }}–{{ path_rep.max_length }}</div>
+        <div class="label">length range</div>
+      </div>
+      <div class="stat">
+        <div class="value">{{ "%.2f"|format(path_rep.mean_length) }}</div>
+        <div class="label">mean length</div>
+      </div>
+    </div>
+
+    <div class="path-description">{{ description_html | safe }}</div>
+
+    {% if path_rep.notes %}
+    <p class="notes"><strong>Note:</strong> {{ path_rep.notes }}</p>
+    {% endif %}
+  </section>
+
+  {# ============================== Agent 5 — emergence ===================== #}
+  {% if interpretation %}
+  <section class="interpretation-section landscape-interpretation">
+    <div class="section-eyebrow">
+      <span class="agent-tag agent-5">Agent 5</span>
+      <span class="section-name">Landscape interpretation</span>
+    </div>
+    <h2>What the path landscape says about emergence</h2>
+
+    <div class="emergence-badge">
+      <span class="badge-label">Emergence type</span>
+      <span class="badge-value">{{ interpretation.emergence_type }}</span>
+    </div>
+    {% if interpretation.type_rationale %}
+    <p class="type-rationale">{{ interpretation.type_rationale }}</p>
+    {% endif %}
+
+    {% if interpretation.dominant_features %}
+    <h3>Dominant path-structural features</h3>
+    <ul class="feature-list">
+      {% for f in interpretation.dominant_features %}
+      <li>
+        <div class="feature-head">
+          <span class="feature-name">{{ f.name }}</span>
+          {% if f.metric %}<span class="feature-metric">{{ f.metric }}</span>{% endif %}
+        </div>
+        <p>{{ f.description }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if interpretation.mechanism %}
+    <h3>Mechanism</h3>
+    <div class="interpretation mechanism-block">{{ mechanism_html | safe }}</div>
+    {% endif %}
+
+    {% if interpretation.prediction %}
+    <h3>Falsifiable prediction</h3>
+    <p class="prediction-block">{{ interpretation.prediction }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {# ============================== Agent 3 — network ======================= #}
+  <section class="figure-section">
+    <div class="section-eyebrow">
+      <span class="agent-tag agent-3">Agent 3</span>
+      <span class="section-name">Network representation</span>
+    </div>
+    <h2>The circuit as a directed graph (input → output, with feedback)</h2>
+    <p class="section-lede">
+      Cyan = input units, red = output units, amber = internal units.
+      Solid black arrows are feedforward connections; dashed red arrows are
+      recurrent (feedback) connections that fire one time step later. Rounded
+      boxes group units that share a multiscale parent (region/module).
+    </p>
+    <img src="{{ url_for('file', job_id=job_id, filename='network.png') }}"
+         alt="Network representation for {{ phenomenon }}" />
+  </section>
+
+  {# ============================== Agent 2 — neural system ================= #}
+  <section class="info-section">
+    <div class="section-eyebrow">
+      <span class="agent-tag agent-2">Agent 2</span>
+      <span class="section-name">Neural system</span>
+    </div>
+    <h2>{{ neural_system.system_name }}</h2>
+    <p>{{ neural_system.description }}</p>
+    <div class="info-grid">
+      <div>
+        <h3>Brain regions</h3>
+        <ul class="pill-list">
+          {% for r in neural_system.brain_regions %}
+            <li><code>{{ r }}</code></li>
+          {% else %}<li class="empty">(none specified)</li>{% endfor %}
+        </ul>
+      </div>
+      <div>
+        <h3>Neuron types</h3>
+        <ul class="pill-list">
+          {% for r in neural_system.neuron_types %}
+            <li><code>{{ r }}</code></li>
+          {% else %}<li class="empty">(none specified)</li>{% endfor %}
+        </ul>
+      </div>
+      <div>
+        <h3>Circuit motifs</h3>
+        <ul class="pill-list">
+          {% for r in neural_system.key_circuit_motifs %}
+            <li><code>{{ r }}</code></li>
+          {% else %}<li class="empty">(none specified)</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  {# ============================== System overview (ontology) ============== #}
+  <section class="info-section ontology-section">
+    <h2>System overview</h2>
+    <div class="ontology-grid">
+
+      <div class="ontology-block">
+        <div class="ontology-label">Emergent phenomenon</div>
+        <div class="ontology-value">{{ spec.phenomenon_name }}</div>
+        {% if spec.phenomenon_summary %}
+        <p class="ontology-desc">{{ spec.phenomenon_summary }}</p>
+        {% endif %}
+      </div>
+
+      <div class="ontology-block">
+        <div class="ontology-label">Neural system (circuit)</div>
+        <div class="ontology-value">{{ neural_system.system_name }}</div>
+        {% if neural_system.description %}
+        <p class="ontology-desc">{{ neural_system.description }}</p>
+        {% endif %}
+      </div>
+
+      <div class="ontology-block">
+        <div class="ontology-label">Observation (output units)</div>
+        <ul class="pill-list">
+          {% for u in spec.units if u.role == 'output' %}
+            <li><code>{{ u.name }}</code>{% if u.description %} — {{ u.description }}{% endif %}</li>
+          {% else %}
+            <li class="empty">(no output units specified)</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="ontology-block">
+        <div class="ontology-label">Basic computation units (input)</div>
+        <ul class="pill-list">
+          {% for u in spec.units if u.role == 'input' %}
+            <li><code>{{ u.name }}</code>{% if u.description %} — {{ u.description }}{% endif %}</li>
+          {% else %}
+            <li class="empty">(no input units specified)</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <div class="ontology-block">
+        <div class="ontology-label">Internal processing units</div>
+        <ul class="pill-list">
+          {% for u in spec.units if u.role == 'internal' %}
+            <li><code>{{ u.name }}</code>{% if u.description %} — {{ u.description }}{% endif %}</li>
+          {% else %}
+            <li class="empty">(no internal units)</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  {# ============================== Agent 1 — paper ========================= #}
+  <section class="info-section">
+    <div class="section-eyebrow">
+      <span class="agent-tag agent-1">Agent 1</span>
+      <span class="section-name">Anchor paper</span>
+    </div>
+    <h2>{{ paper.title }}</h2>
+    <p class="paper-meta">
+      <em>{{ paper.authors }}</em> · {{ paper.year }}
+      {% if paper.venue %} · {{ paper.venue }}{% endif %}
+      {% if paper.doi_or_url %} · <code>{{ paper.doi_or_url }}</code>{% endif %}
+    </p>
+    {% if paper.summary %}
+    <p>{{ paper.summary }}</p>
+    {% endif %}
+    {% if paper.key_findings %}
+    <h3>Key findings</h3>
+    <ul>
+      {% for k in paper.key_findings %}
+        <li>{{ k }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  {# ============================== spec tables ============================ #}
+  <section class="spec-section">
+    <h2>System specification</h2>
+    <p class="section-lede">The unit / interaction list Agent 3 produced.</p>
+    <details>
+      <summary>Units ({{ spec.units | length }})</summary>
+      <table class="spec-table">
+        <thead>
+          <tr><th>name</th><th>role</th><th>scale</th><th>parent</th><th>description</th></tr>
+        </thead>
+        <tbody>
+        {% for u in spec.units %}
+          <tr>
+            <td><code>{{ u.name }}</code></td>
+            <td><span class="role-pill role-{{ u.role }}">{{ u.role }}</span></td>
+            <td>{{ u.scale }}</td>
+            <td>{{ u.parent or '' }}</td>
+            <td>{{ u.description }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    <details>
+      <summary>Interactions ({{ spec.interactions | length }})</summary>
+      <table class="spec-table">
+        <thead>
+          <tr><th>source</th><th>target</th><th>weight</th><th>recurrent</th><th>description</th></tr>
+        </thead>
+        <tbody>
+        {% for it in spec.interactions %}
+          <tr>
+            <td><code>{{ it.source }}</code></td>
+            <td><code>{{ it.target }}</code></td>
+            <td>{{ "%.2f"|format(it.weight) }}</td>
+            <td>{{ "✓" if it.recurrent else "" }}</td>
+            <td>{{ it.description }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    {% if spec.notes %}
+    <p class="notes"><strong>Notes:</strong> {{ spec.notes }}</p>
+    {% endif %}
+  </section>
+
+  <section class="downloads">
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='report.md') }}" download>report.md</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='spec.json') }}" download>spec.json</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='paper.json') }}" download>paper.json</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='neural_system.json') }}" download>neural_system.json</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='path_rep.json') }}" download>path_rep.json</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='network.png') }}" download>network.png</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='paths.png') }}" download>paths.png</a>
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='routes.png') }}" download>routes.png</a>
+  </section>
+</main>
+</body>
+</html>

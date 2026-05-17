@@ -1,0 +1,3580 @@
+{
+  "time_steps": 6,
+  "intrinsic_time_scale": 2,
+  "n_paths": 100,
+  "n_routes": 79,
+  "n_modes": 1,
+  "n_feedforward_paths": 3,
+  "n_feedback_paths": 97,
+  "min_length": 3,
+  "max_length": 7,
+  "mean_length": 5.81,
+  "notes": "",
+  "paths": [
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L5_pyr_output@0",
+        "delay_persistent_activity@0"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 3,
+      "crosses_feedback": false,
+      "weight": 1.0,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "L5_pyr_output@0",
+        "delay_persistent_activity@0"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 3,
+      "crosses_feedback": false,
+      "weight": 0.3,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "L5_pyr_output@0",
+        "delay_persistent_activity@0"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 3,
+      "crosses_feedback": false,
+      "weight": 0.3,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 1.5,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.6,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.6,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 1.2,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 1.2,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 1.2,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 1.2,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.2,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.2,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "L3_pyr_pref90@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.44999999999999996,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "L3_pyr_pref0@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.18,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "L3_pyr_pref180@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.18,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "L3_pyr_pref270@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.44999999999999996,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "L3_pyr_pref180@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.18,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "L3_pyr_pref0@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 4,
+      "crosses_feedback": true,
+      "weight": 0.18,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref270@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "L5_pyr_output@1",
+        "delay_persistent_activity@1"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 2.25,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.8999999999999999,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.8999999999999999,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.30000000000000004,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref0@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.30000000000000004,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.8999999999999999,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.8999999999999999,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref0@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref90@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref180@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "PV_basket@0",
+        "L3_pyr_pref270@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.44,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.30000000000000004,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.12,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.12,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.04000000000000001,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref0@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.04000000000000001,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.30000000000000004,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.12,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.12,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "PV_basket@1",
+        "L3_pyr_pref270@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref0@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.04000000000000001,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref0@0",
+        "SST_interneuron@0",
+        "L3_pyr_pref180@1",
+        "SST_interneuron@1",
+        "L3_pyr_pref180@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.04000000000000001,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "spatial_cue_input@0",
+        "L3_pyr_pref90@0",
+        "L3_pyr_pref90@1",
+        "L3_pyr_pref90@2",
+        "L5_pyr_output@2",
+        "delay_persistent_activity@2"
+      ],
+      "base_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L3_pyr_pref90",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.6749999999999999,
+      "time_span": 2
+    }
+  ],
+  "routes": [
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 4.75,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 1.4249999999999998,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 2,
+      "weight": 0.75,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 2.4,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 2.4,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 4.8,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 4.8,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 4.8,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 4.8,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 0.8,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 3,
+      "weight": 0.8,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.18,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.18,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.18,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.18,
+      "crosses_feedback": true,
+      "cluster_id": -1
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.36,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.72,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 1.44,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.12,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.12,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.04000000000000001,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.04000000000000001,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.12,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.12,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref90",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "PV_basket",
+        "L3_pyr_pref270",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.24,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.04000000000000001,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    },
+    {
+      "chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "SST_interneuron",
+        "L3_pyr_pref180",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "count": 1,
+      "weight": 0.04000000000000001,
+      "crosses_feedback": true,
+      "cluster_id": 0
+    }
+  ],
+  "clusters": [
+    {
+      "cluster_id": 0,
+      "size": 70,
+      "total_count": 82,
+      "representative_chain": [
+        "spatial_cue_input",
+        "L3_pyr_pref0",
+        "PV_basket",
+        "L3_pyr_pref0",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ],
+      "mean_length": 6.2,
+      "n_feedforward": 0,
+      "n_feedback": 70,
+      "shared_units": [
+        "spatial_cue_input",
+        "L5_pyr_output",
+        "delay_persistent_activity"
+      ]
+    }
+  ]
+}

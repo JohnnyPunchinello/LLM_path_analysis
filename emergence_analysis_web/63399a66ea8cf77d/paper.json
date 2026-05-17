@@ -1,0 +1,15 @@
+{
+  "title": "A neural theory of binocular rivalry",
+  "authors": "Laing, Chow",
+  "year": 2002,
+  "venue": "Journal of Computational Neuroscience",
+  "summary": "This paper presents a foundational computational circuit model of binocular rivalry, showing how alternating perceptual dominance emerges from mutual inhibition between two populations of monocular neurons combined with slow spike-frequency adaptation. The model reproduces the stochastic switching dynamics and gamma-distributed dominance durations observed psychophysically, and clarifies how noise and adaptation jointly drive perceptual alternations rather than a purely deterministic oscillator.",
+  "key_findings": [
+    "Two populations of excitatory neurons, each driven by one eye's input, compete via reciprocal inhibition through inhibitory interneurons.",
+    "Slow spike-frequency adaptation in the dominant population destabilises its activity and allows the suppressed population to win, producing alternations.",
+    "Intrinsic neural noise is required to reproduce the empirically observed gamma-like distribution of dominance durations (Levelt's propositions).",
+    "The model accounts for the dependence of switching rate on stimulus contrast and predicts conditions under which rivalry gives way to fusion or simultaneous perception.",
+    "Establishes the canonical 'competition + adaptation + noise' circuit motif now used to model many bistable perceptual phenomena."
+  ],
+  "doi_or_url": ""
+}

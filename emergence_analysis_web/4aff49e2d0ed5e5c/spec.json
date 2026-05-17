@@ -1,0 +1,347 @@
+{
+  "phenomenon_name": "Starling Murmuration",
+  "phenomenon_summary": "A flock of starlings produces coherent collective turning from local rules: each bird aligns velocity, avoids collisions, and stays cohesive with a small number of topological neighbors, yielding flock-scale waves of direction change.",
+  "units": [
+    {
+      "name": "predator_cue",
+      "role": "input",
+      "scale": 0,
+      "parent": "flock",
+      "description": "External threat / falcon appearance triggering edge-bird turn"
+    },
+    {
+      "name": "wind_field",
+      "role": "input",
+      "scale": 0,
+      "parent": "flock",
+      "description": "Ambient air currents perturbing trajectories"
+    },
+    {
+      "name": "light_gradient",
+      "role": "input",
+      "scale": 0,
+      "parent": "flock",
+      "description": "Visual contrast cue used by birds to detect neighbors"
+    },
+    {
+      "name": "bird_edge_1",
+      "role": "internal",
+      "scale": 0,
+      "parent": "edge_group",
+      "description": "Peripheral bird, first to sense predator"
+    },
+    {
+      "name": "bird_edge_2",
+      "role": "internal",
+      "scale": 0,
+      "parent": "edge_group",
+      "description": "Peripheral bird on opposite flank"
+    },
+    {
+      "name": "bird_mid_1",
+      "role": "internal",
+      "scale": 0,
+      "parent": "core_group",
+      "description": "Mid-flock bird relaying alignment"
+    },
+    {
+      "name": "bird_mid_2",
+      "role": "internal",
+      "scale": 0,
+      "parent": "core_group",
+      "description": "Mid-flock bird relaying alignment"
+    },
+    {
+      "name": "bird_mid_3",
+      "role": "internal",
+      "scale": 0,
+      "parent": "core_group",
+      "description": "Mid-flock bird relaying alignment"
+    },
+    {
+      "name": "bird_core_1",
+      "role": "internal",
+      "scale": 0,
+      "parent": "core_group",
+      "description": "Deep-core bird, mostly follows neighbors"
+    },
+    {
+      "name": "bird_core_2",
+      "role": "internal",
+      "scale": 0,
+      "parent": "core_group",
+      "description": "Deep-core bird"
+    },
+    {
+      "name": "edge_group",
+      "role": "internal",
+      "scale": 1,
+      "parent": "flock",
+      "description": "Module of peripheral birds that detect threats first"
+    },
+    {
+      "name": "core_group",
+      "role": "internal",
+      "scale": 1,
+      "parent": "flock",
+      "description": "Module of interior birds that propagate alignment"
+    },
+    {
+      "name": "flock",
+      "role": "internal",
+      "scale": 2,
+      "parent": null,
+      "description": "Whole murmuration as a coherent body"
+    },
+    {
+      "name": "turn_wave",
+      "role": "output",
+      "scale": 2,
+      "parent": null,
+      "description": "Observed wave of synchronized direction change sweeping through the flock"
+    },
+    {
+      "name": "flock_shape",
+      "role": "output",
+      "scale": 2,
+      "parent": null,
+      "description": "Macroscopic shape / density pattern of the murmuration"
+    }
+  ],
+  "interactions": [
+    {
+      "source": "predator_cue",
+      "target": "bird_edge_1",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Edge bird detects predator"
+    },
+    {
+      "source": "predator_cue",
+      "target": "bird_edge_2",
+      "weight": 0.6,
+      "recurrent": false,
+      "description": "Opposite edge sees with delay"
+    },
+    {
+      "source": "wind_field",
+      "target": "bird_mid_1",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "wind_field",
+      "target": "bird_core_1",
+      "weight": 0.3,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "light_gradient",
+      "target": "bird_edge_1",
+      "weight": 0.4,
+      "recurrent": false,
+      "description": "Visual neighbor detection"
+    },
+    {
+      "source": "light_gradient",
+      "target": "bird_mid_2",
+      "weight": 0.4,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_edge_1",
+      "target": "bird_mid_1",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": "Topological neighbor alignment"
+    },
+    {
+      "source": "bird_edge_1",
+      "target": "bird_mid_2",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_edge_2",
+      "target": "bird_mid_3",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_mid_1",
+      "target": "bird_mid_2",
+      "weight": 0.7,
+      "recurrent": true,
+      "description": "Mutual alignment feedback"
+    },
+    {
+      "source": "bird_mid_2",
+      "target": "bird_mid_1",
+      "weight": 0.7,
+      "recurrent": true,
+      "description": ""
+    },
+    {
+      "source": "bird_mid_2",
+      "target": "bird_core_1",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_mid_3",
+      "target": "bird_core_2",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_core_1",
+      "target": "bird_core_2",
+      "weight": 0.7,
+      "recurrent": true,
+      "description": "Core cohesion feedback"
+    },
+    {
+      "source": "bird_core_2",
+      "target": "bird_core_1",
+      "weight": 0.7,
+      "recurrent": true,
+      "description": ""
+    },
+    {
+      "source": "bird_core_1",
+      "target": "bird_mid_1",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": "Back-propagation of cohesion pressure"
+    },
+    {
+      "source": "bird_core_2",
+      "target": "bird_mid_3",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": ""
+    },
+    {
+      "source": "bird_edge_1",
+      "target": "edge_group",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_edge_2",
+      "target": "edge_group",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_mid_1",
+      "target": "core_group",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_mid_2",
+      "target": "core_group",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_mid_3",
+      "target": "core_group",
+      "weight": 0.8,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_core_1",
+      "target": "core_group",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "bird_core_2",
+      "target": "core_group",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "edge_group",
+      "target": "flock",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "core_group",
+      "target": "flock",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "edge_group",
+      "target": "core_group",
+      "weight": 0.6,
+      "recurrent": true,
+      "description": "Inter-module propagation of turn"
+    },
+    {
+      "source": "core_group",
+      "target": "edge_group",
+      "weight": 0.4,
+      "recurrent": true,
+      "description": ""
+    },
+    {
+      "source": "flock",
+      "target": "turn_wave",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    },
+    {
+      "source": "flock",
+      "target": "flock_shape",
+      "weight": 1.0,
+      "recurrent": false,
+      "description": ""
+    }
+  ],
+  "time_steps": 6,
+  "parameters": [
+    {
+      "name": "topological_neighbors",
+      "role": "Number of nearest neighbors each bird attends to (classic value ~7)",
+      "value": "7"
+    },
+    {
+      "name": "flock_size",
+      "role": "Total number of birds; controls scale of collective",
+      "value": "1000"
+    },
+    {
+      "name": "alignment_strength",
+      "role": "Weight of velocity-matching rule vs noise",
+      "value": "0.8"
+    },
+    {
+      "name": "noise_level",
+      "role": "Individual turning noise; tunes order-disorder transition",
+      "value": "0.1"
+    }
+  ],
+  "notes": "Coarse-grained model: 7 representative birds stand in for thousands; modules abstract edge vs core dynamics. Topological (not metric) neighbor coupling and recurrent edges capture the propagating turn waves observed empirically."
+}

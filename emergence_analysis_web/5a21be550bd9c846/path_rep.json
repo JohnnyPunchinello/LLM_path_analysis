@@ -1,0 +1,1337 @@
+{
+  "time_steps": 6,
+  "intrinsic_time_scale": 4,
+  "n_paths": 50,
+  "n_feedforward_paths": 5,
+  "n_feedback_paths": 45,
+  "min_length": 3,
+  "max_length": 10,
+  "mean_length": 7.24,
+  "notes": "",
+  "paths": [
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA1_pyramidal@0",
+        "RecalledMemory@0"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 5,
+      "crosses_feedback": false,
+      "weight": 1.5,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA1_PV_basket@0",
+        "CA1_pyramidal@0",
+        "RecalledMemory@0"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": false,
+      "weight": 0.4800000000000001,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA1_pyramidal@0",
+        "RecalledMemory@0"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 4,
+      "crosses_feedback": false,
+      "weight": 0.6,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA1_PV_basket@0",
+        "CA1_pyramidal@0",
+        "RecalledMemory@0"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 5,
+      "crosses_feedback": false,
+      "weight": 0.192,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LIII_pyramidal@0",
+        "CA1_pyramidal@0",
+        "RecalledMemory@0"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LIII_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 3,
+      "crosses_feedback": false,
+      "weight": 0.4,
+      "time_span": 0
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 1.7999999999999998,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA1_PV_basket@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.576,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.5,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA1_PV_basket@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.16000000000000003,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA1_PV_basket@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.2304,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 5,
+      "crosses_feedback": true,
+      "weight": 0.4,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA1_PV_basket@1",
+        "CA1_pyramidal@1",
+        "RecalledMemory@1"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.12800000000000003,
+      "time_span": 1
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 2.1599999999999997,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_PV_basket@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.6911999999999999,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.8999999999999999,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA1_PV_basket@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.288,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.6,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_PV_basket@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.192,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.864,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_PV_basket@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.27648,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.36,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA1_PV_basket@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.1152,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 6,
+      "crosses_feedback": true,
+      "weight": 0.48,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA1_PV_basket@2",
+        "CA1_pyramidal@2",
+        "RecalledMemory@2"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.15360000000000001,
+      "time_span": 2
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 2.5919999999999996,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.82944,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 1.0799999999999998,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.34559999999999996,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 1.0799999999999998,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.34559999999999996,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.72,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.2304,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.3,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 0.096,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 1.0368,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.331776,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.13824,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_pyramidal@0",
+        "CA3_PV_basket@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.13824,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.576,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.18432,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 7,
+      "crosses_feedback": true,
+      "weight": 0.24,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "CA3_PV_basket@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA1_PV_basket@3",
+        "CA1_pyramidal@3",
+        "RecalledMemory@3"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 8,
+      "crosses_feedback": true,
+      "weight": 0.07680000000000001,
+      "time_span": 3
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA3_pyramidal@4",
+        "CA1_pyramidal@4",
+        "RecalledMemory@4"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 3.1103999999999994,
+      "time_span": 4
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_pyramidal@3",
+        "CA3_pyramidal@4",
+        "CA1_PV_basket@4",
+        "CA1_pyramidal@4",
+        "RecalledMemory@4"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 10,
+      "crosses_feedback": true,
+      "weight": 0.995328,
+      "time_span": 4
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_PV_basket@3",
+        "CA3_pyramidal@4",
+        "CA1_pyramidal@4",
+        "RecalledMemory@4"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 1.2959999999999998,
+      "time_span": 4
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_pyramidal@2",
+        "CA3_PV_basket@3",
+        "CA3_pyramidal@4",
+        "CA1_PV_basket@4",
+        "CA1_pyramidal@4",
+        "RecalledMemory@4"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA1_PV_basket",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 10,
+      "crosses_feedback": true,
+      "weight": 0.41472,
+      "time_span": 4
+    },
+    {
+      "nodes": [
+        "PartialCue@0",
+        "EC_LII_stellate@0",
+        "DG_granule@0",
+        "CA3_pyramidal@0",
+        "CA3_pyramidal@1",
+        "CA3_PV_basket@2",
+        "CA3_pyramidal@3",
+        "CA3_pyramidal@4",
+        "CA1_pyramidal@4",
+        "RecalledMemory@4"
+      ],
+      "base_chain": [
+        "PartialCue",
+        "EC_LII_stellate",
+        "DG_granule",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA3_PV_basket",
+        "CA3_pyramidal",
+        "CA3_pyramidal",
+        "CA1_pyramidal",
+        "RecalledMemory"
+      ],
+      "length": 9,
+      "crosses_feedback": true,
+      "weight": 1.2959999999999998,
+      "time_span": 4
+    }
+  ]
+}

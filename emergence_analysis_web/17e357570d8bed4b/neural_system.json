@@ -1,0 +1,26 @@
+{
+  "system_name": "Hippocampal CA3 recurrent auto-associative network",
+  "brain_regions": [
+    "Hippocampal CA3",
+    "Dentate gyrus",
+    "Entorhinal cortex (layer II)",
+    "Hippocampal CA1"
+  ],
+  "neuron_types": [
+    "CA3 pyramidal neurons",
+    "Dentate granule cells",
+    "Entorhinal layer II stellate cells",
+    "CA1 pyramidal neurons",
+    "PV+ basket interneurons",
+    "Mossy cells"
+  ],
+  "key_circuit_motifs": [
+    "Recurrent excitation (CA3 collaterals)",
+    "NMDAR-dependent Hebbian plasticity",
+    "Auto-associative attractor dynamics",
+    "Sparse mossy fiber input (detonator synapse)",
+    "Feedforward inhibition",
+    "Perforant path input"
+  ],
+  "description": "CA3 pyramidal neurons are densely interconnected via recurrent collateral synapses equipped with NMDAR-dependent plasticity, forming a Marr/Hopfield-style auto-associative network. During encoding, sparse mossy fiber inputs from dentate granule cells drive CA3 pyramidal cells to potentiate recurrent synapses among co-active neurons. At recall, a partial entorhinal cue activates a subset of these neurons, and recurrent excitation reinstates the complete stored activity pattern as an attractor state, producing pattern completion."
+}

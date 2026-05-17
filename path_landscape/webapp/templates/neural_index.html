@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Neural-circuit analysis · Path Landscape</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="container">
+    <a href="{{ url_for('index') }}" class="back">&larr; back to emergence analysis</a>
+
+    <header>
+      <h1>Neural-circuit analysis</h1>
+      <p class="subtitle">
+        A 4-agent pipeline that turns an emergent neural phenomenon into a
+        <strong>path representation</strong> of the underlying circuit.
+      </p>
+    </header>
+
+    <section class="agent-strip">
+      <ol class="agent-list">
+        <li><span class="agent-num">1</span>
+          <strong>Research paper</strong>
+          <p>Identify a foundational paper about the circuit responsible.</p>
+        </li>
+        <li><span class="agent-num">2</span>
+          <strong>Neural system</strong>
+          <p>Brain regions, cell types, and connectivity motifs.</p>
+        </li>
+        <li><span class="agent-num">3</span>
+          <strong>Network</strong>
+          <p>Directed graph with input side, output side, feedback loops, and
+          multiscale structure.</p>
+        </li>
+        <li><span class="agent-num">4</span>
+          <strong>Path representation</strong>
+          <p>Unroll feedback loops in time; enumerate input → output paths;
+          identify the system's time scale and the longer paths carrying
+          feedback.</p>
+        </li>
+      </ol>
+    </section>
+
+    {% if not api_key_set %}
+    <div class="warn">
+      <strong>Heads up:</strong> <code>ANTHROPIC_API_KEY</code> is not set on
+      this server. Submit will fail until you export it and restart.
+    </div>
+    {% endif %}
+
+    <form id="neural-form" autocomplete="off">
+      <label for="phenomenon">Emergent neural phenomenon</label>
+      <textarea id="phenomenon" name="phenomenon" rows="3"
+                placeholder="e.g. Binocular rivalry — perceptual alternation between two competing images"
+                required></textarea>
+
+      <details class="advanced">
+        <summary>Advanced settings</summary>
+        <div class="grid">
+          <label>
+            paths enumerated
+            <input type="number" id="n_paths" name="n_paths"
+                   min="50" max="20000" step="50" value="1500" />
+          </label>
+        </div>
+      </details>
+
+      <div class="examples">
+        <span class="examples-label">try:</span>
+        <button type="button" data-example="Binocular rivalry — perception alternates between two competing images">binocular rivalry</button>
+        <button type="button" data-example="Pattern completion in the hippocampus from a partial cue">pattern completion</button>
+        <button type="button" data-example="Persistent activity sustaining working memory in prefrontal cortex">working memory</button>
+        <button type="button" data-example="Orientation selectivity emerging in primary visual cortex (V1)">orientation selectivity</button>
+        <button type="button" data-example="Place cells forming a cognitive map of an environment">place cells</button>
+        <button type="button" data-example="Saccadic decision-making in the superior colliculus">saccade decision</button>
+      </div>
+
+      <button type="submit" class="primary" id="submit-btn">Analyze neural circuit</button>
+    </form>
+
+    <section id="progress" hidden>
+      <div class="bar-wrap" aria-label="progress">
+        <div class="bar" id="bar" style="width:0%"></div>
+        <div class="bar-label" id="bar-label">0%</div>
+      </div>
+      <ul id="event-log"></ul>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='neural_script.js') }}"></script>
+</body>
+</html>

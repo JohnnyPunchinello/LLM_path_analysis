@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Path Landscape - Emergence Analysis</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>The Shape of Emergence</h1>
+      <p class="subtitle">Path-landscape analysis of an emergent phenomenon.
+        Type a description, hit <em>Analyze</em>, and watch the pipeline
+        specify the system, extract paths, compute the landscape metrics,
+        and interpret the result.</p>
+      <p class="mode-link">
+        Want a neural-circuit focused 4-agent analysis instead?
+        <a href="{{ url_for('neural_index') }}">Neural-circuit mode →</a>
+      </p>
+    </header>
+
+    {% if not api_key_set %}
+    <div class="warn">
+      <strong>Heads up:</strong> <code>ANTHROPIC_API_KEY</code> is not set on
+      this server. Submit will fail until you export it and restart.
+    </div>
+    {% endif %}
+
+    <form id="analyze-form" autocomplete="off">
+      <label for="phenomenon">Phenomenon</label>
+      <textarea id="phenomenon" name="phenomenon" rows="3"
+                placeholder="e.g. Chain-of-thought reasoning emerging in a large language model"
+                required></textarea>
+
+      <details class="advanced">
+        <summary>Advanced settings</summary>
+        <div class="grid">
+          <label>
+            paths sampled
+            <input type="number" id="n_paths" name="n_paths"
+                   min="50" max="20000" step="50" value="1500" />
+          </label>
+          <label>
+            clustering eps
+            <input type="number" id="eps" name="eps"
+                   min="0.05" max="0.95" step="0.05" value="0.45" />
+          </label>
+        </div>
+      </details>
+
+      <div class="examples">
+        <span class="examples-label">try:</span>
+        <button type="button" data-example="A flock of starlings turning as one">starling flock</button>
+        <button type="button" data-example="Chain-of-thought reasoning emerging in a large language model">CoT in LLMs</button>
+        <button type="button" data-example="Insight ('aha') moments arising from spreading activation in cortex">aha moments</button>
+        <button type="button" data-example="Phase transition to ferromagnetism in an Ising model near criticality">Ising transition</button>
+        <button type="button" data-example="Stem-cell differentiation choosing a lineage from a pluripotent state">stem-cell choice</button>
+      </div>
+
+      <button type="submit" class="primary" id="submit-btn">Analyze</button>
+    </form>
+
+    <section id="progress" hidden>
+      <div class="bar-wrap" aria-label="progress">
+        <div class="bar" id="bar" style="width:0%"></div>
+        <div class="bar-label" id="bar-label">0%</div>
+      </div>
+      <ul id="event-log"></ul>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

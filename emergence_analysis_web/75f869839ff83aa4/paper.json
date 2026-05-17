@@ -1,0 +1,15 @@
+{
+  "title": "A neural theory of binocular rivalry",
+  "authors": "Laing, Chow",
+  "year": 2002,
+  "venue": "Journal of Computational Neuroscience",
+  "summary": "Laing and Chow develop a biophysically-grounded spiking and rate-model account of binocular rivalry in which two populations of cortical neurons, each selective for one eye's image, mutually inhibit one another via shared inhibitory interneurons. Slow spike-frequency adaptation (and/or synaptic depression) within the currently dominant population gradually weakens its drive, allowing the suppressed population to escape inhibition and take over. This reciprocal-inhibition + adaptation circuit motif reproduces the stochastic alternations, gamma-like dominance durations, and Levelt's propositions observed psychophysically, and has since become the canonical circuit explanation for perceptual rivalry.",
+  "key_findings": [
+    "Two excitatory populations encoding the rival monocular images compete through cross-inhibition mediated by inhibitory interneurons in early visual cortex.",
+    "Spike-frequency adaptation (calcium-activated K+ currents) in the dominant population acts as the slow fatigue variable that triggers switches.",
+    "Noise in the network sets the stochastic distribution of dominance durations, yielding the gamma-shaped histograms seen experimentally.",
+    "The model captures Levelt's propositions: increasing contrast to one eye shortens the dominance of the *other* eye rather than lengthening the stimulated eye's dominance.",
+    "Establishes the general 'competition + adaptation + noise' circuit motif now used to model perceptual multistability more broadly."
+  ],
+  "doi_or_url": ""
+}

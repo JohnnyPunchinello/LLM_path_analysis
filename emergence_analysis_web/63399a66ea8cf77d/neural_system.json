@@ -1,0 +1,23 @@
+{
+  "system_name": "V1 monocular populations with mutual inhibition and adaptation",
+  "brain_regions": [
+    "Primary visual cortex (V1)",
+    "Extrastriate visual cortex (V2/V4)",
+    "LGN"
+  ],
+  "neuron_types": [
+    "Monocular L4 excitatory neurons",
+    "Binocular pyramidal neurons",
+    "PV+ basket interneurons",
+    "SOM+ interneurons",
+    "LGN relay neurons"
+  ],
+  "key_circuit_motifs": [
+    "Mutual inhibition between eye-specific populations",
+    "Spike-frequency adaptation",
+    "Recurrent excitation within each population",
+    "Stochastic noise-driven switching",
+    "Cross-orientation/interocular suppression"
+  ],
+  "description": "Two populations of monocular excitatory neurons in V1 (each driven by one eye via LGN) compete through reciprocal inhibition mediated by local GABAergic interneurons, so that only one eye's representation is dominant at a time. Slow spike-frequency adaptation in the dominant population gradually weakens its drive, allowing the suppressed population to escape inhibition and take over. Intrinsic neuronal noise sets the timing of these switches, producing the gamma-distributed dominance durations characteristic of binocular rivalry."
+}

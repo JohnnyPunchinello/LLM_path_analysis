@@ -1,0 +1,26 @@
+{
+  "system_name": "CA3 recurrent collateral autoassociative network",
+  "brain_regions": [
+    "Hippocampal CA3",
+    "Dentate gyrus",
+    "Entorhinal cortex (layer II)",
+    "Hippocampal CA1"
+  ],
+  "neuron_types": [
+    "CA3 pyramidal neurons",
+    "Dentate granule cells",
+    "CA1 pyramidal neurons",
+    "Entorhinal layer II stellate cells",
+    "PV+ basket interneurons",
+    "Mossy cells"
+  ],
+  "key_circuit_motifs": [
+    "Recurrent excitation (CA3 associative collaterals)",
+    "NMDAR-dependent Hebbian plasticity",
+    "Attractor dynamics / autoassociative memory",
+    "Sparse mossy-fiber detonator input",
+    "Perforant path feedforward input",
+    "Feedback inhibition by PV+ interneurons"
+  ],
+  "description": "Dense recurrent collateral synapses among CA3 pyramidal neurons, strengthened by NMDAR-dependent Hebbian plasticity, store memory patterns as distributed attractor states. When a partial cue arrives via perforant path or mossy fiber input, recurrent excitation among CA3 pyramidals iteratively fills in missing activity, converging on the stored attractor; feedback inhibition keeps activity sparse and stable. The completed CA3 pattern is then read out by CA1, supporting recall from degraded cues as demonstrated by Nakazawa et al.'s CA3-NR1 knockout."
+}

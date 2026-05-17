@@ -1,0 +1,33 @@
+{
+  "emergence_type": "attractor / pattern completion",
+  "type_rationale": "A single dominant mode (94% of routes) with mandatory passage through CA3_Pyramidal recurrent collaterals and DG mossy-cell reentry \u2014 all 30 feedback routes converging on the same RecalledPattern readout \u2014 is the canonical signature of a fixed-point auto-associative attractor performing completion, not selection or competition (which would require \u22652 comparable modes).",
+  "dominant_features": [
+    {
+      "name": "dominant cluster",
+      "description": "Mode 0 absorbs 29 of 31 unique routes (126 of 133 raw paths, 95%) and every route in it traverses feedback edges. All routes share the same five-unit backbone PartialCue_EC2 \u2192 EntorhinalCortexL2 \u2192 ... \u2192 CA3_Pyramidal \u2192 CA1_Pyramidal \u2192 RecalledPattern, indicating a single basin of computation rather than competing modes.",
+      "metric": "Mode 0 = 29/31 routes (94%), 126/133 raw paths (95%)"
+    },
+    {
+      "name": "recurrent attractor",
+      "description": "30 of 31 routes are feedback-traversing and the path length spans 3\u201316 with mean 9.9 \u2014 far longer than the 3-hop direct EC\u2192CA3\u2192CA1 shortcut. The representative route re-enters DG_GranuleCells via DG_MossyCells (DG\u2192Mossy\u2192DG loop) and CA3_Pyramidal recurrent collaterals, producing the long looping routes characteristic of attractor convergence.",
+      "metric": "feedback routes = 30/31; mean length 9.9 vs shortest 3"
+    },
+    {
+      "name": "shared hub",
+      "description": "CA3_Pyramidal and EntorhinalCortexL2 appear in the intersection of ALL Mode 0 routes \u2014 every completion path is forced through the CA3 recurrent hub before reaching CA1. This is the auto-associative bottleneck that performs the actual completion.",
+      "metric": "CA3_Pyramidal in 100% of Mode 0 routes"
+    },
+    {
+      "name": "noise tail",
+      "description": "The two noise routes (EC2\u2192EC\u2192CA3\u2192CA1\u2192Recalled, \u00d76; and EC2\u2192EC\u2192CA1\u2192Recalled, \u00d71) are the short feedforward bypasses that skip recurrent dynamics. They represent fast, low-fidelity reads that don't engage the attractor \u2014 a small leak channel alongside the dominant recurrent mode.",
+      "metric": "7/133 raw paths (5%) bypass recurrence"
+    },
+    {
+      "name": "compositional loop",
+      "description": "The DG_GranuleCells \u2194 DG_MossyCells reentry plus CA3 recurrent collaterals (4 recurrent edges over T=6, intrinsic timescale 5) generate the iterative refinement needed to fill in missing cue components before handoff to CA1.",
+      "metric": "4 recurrent edges; timescale 5 \u2248 path mean 9.9 / 2"
+    }
+  ],
+  "mechanism": "The partial cue enters via EntorhinalCortexL2 and is forced into the CA3 recurrent hub, which is shared by every route in Mode 0. Inside CA3, recurrent collaterals plus the DG_GranuleCells\u2192DG_MossyCells\u2192DG_GranuleCells reentry loop iterate the activity pattern over multiple traversals (mean length 9.9, up to 16 hops within T=6 timescale 5), allowing NMDAR-Hebbian-strengthened synapses to fill in missing components of the stored memory. Because there is only one similarity mode, the dynamics flow into one basin \u2014 the stored memory \u2014 and CA1_Pyramidal then reads out the completed pattern as RecalledPattern. The 7 noise paths are the perforant-path/EC\u2192CA1 shortcut that delivers the raw cue without completion, explaining why partial cues still yield some output even when recurrence is impaired.",
+  "prediction": "If the CA3_Pyramidal recurrent collateral edges are ablated (e.g., by silencing CA3-CA3 transmission), Mode 0 would collapse from 29 routes to near zero and the path landscape would be dominated by the two short noise routes (EC2\u2192EC\u2192CA3\u2192CA1\u2192Recalled and EC2\u2192EC\u2192CA1\u2192Recalled), observable experimentally as loss of pattern completion from degraded cues while direct cue-driven CA1 responses remain intact."
+}
