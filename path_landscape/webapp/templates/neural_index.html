@@ -3,41 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Neural-circuit analysis · Path Landscape</title>
+  <title>Path Landscape — Neural Circuit Analysis</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <main class="container">
-    <a href="{{ url_for('index') }}" class="back">&larr; back to emergence analysis</a>
 
     <header>
-      <h1>Neural-circuit analysis</h1>
+      <h1>The Shape of Emergence</h1>
       <p class="subtitle">
-        A 4-agent pipeline that turns an emergent neural phenomenon into a
-        <strong>path representation</strong> of the underlying circuit.
+        Describe an emergent neural (or LLM) phenomenon and a 5-agent
+        pipeline will identify the responsible circuit, map its
+        input&thinsp;&rarr;&thinsp;output paths, cluster them into
+        <strong>similarity modes</strong>, and classify the emergence
+        using the path-landscape framework.
       </p>
     </header>
 
+    <!-- 5-agent strip -->
     <section class="agent-strip">
       <ol class="agent-list">
-        <li><span class="agent-num">1</span>
+        <li>
+          <span class="agent-num">1</span>
           <strong>Research paper</strong>
-          <p>Identify a foundational paper about the circuit responsible.</p>
+          <p>Identify a foundational peer-reviewed paper about the responsible
+          circuit (biological or LLM/transformer).</p>
         </li>
-        <li><span class="agent-num">2</span>
+        <li>
+          <span class="agent-num">2</span>
           <strong>Neural system</strong>
-          <p>Brain regions, cell types, and connectivity motifs.</p>
+          <p>Name the brain regions or computational modules, cell types /
+          attention heads, and key connectivity motifs.</p>
         </li>
-        <li><span class="agent-num">3</span>
-          <strong>Network</strong>
-          <p>Directed graph with input side, output side, feedback loops, and
-          multiscale structure.</p>
+        <li>
+          <span class="agent-num">3</span>
+          <strong>Network + schematic</strong>
+          <p>Build a directed graph (input side, output side, feedback arcs,
+          multiscale groupings) and render a paper-sourced circuit schematic.</p>
         </li>
-        <li><span class="agent-num">4</span>
+        <li>
+          <span class="agent-num">4</span>
           <strong>Path representation</strong>
-          <p>Unroll feedback loops in time; enumerate input → output paths;
-          identify the system's time scale and the longer paths carrying
-          feedback.</p>
+          <p>Unroll feedback in time; enumerate input&thinsp;&rarr;&thinsp;output
+          paths; cluster routes into similarity modes (the path landscape).</p>
+        </li>
+        <li>
+          <span class="agent-num">5</span>
+          <strong>Landscape interpretation</strong>
+          <p>Identify the emergence type, dominant structural features, and
+          classify which of the 4 primitives operate:
+          <em>Path Activation, Path Suppression, Mode Merge, Mode Split</em>.</p>
         </li>
       </ol>
     </section>
@@ -50,7 +65,7 @@
     {% endif %}
 
     <form id="neural-form" autocomplete="off">
-      <label for="phenomenon">Emergent neural phenomenon</label>
+      <label for="phenomenon">Emergent phenomenon</label>
       <textarea id="phenomenon" name="phenomenon" rows="3"
                 placeholder="e.g. Binocular rivalry — perceptual alternation between two competing images"
                 required></textarea>
@@ -73,10 +88,12 @@
         <button type="button" data-example="Persistent activity sustaining working memory in prefrontal cortex">working memory</button>
         <button type="button" data-example="Orientation selectivity emerging in primary visual cortex (V1)">orientation selectivity</button>
         <button type="button" data-example="Place cells forming a cognitive map of an environment">place cells</button>
+        <button type="button" data-example="Indirect object identification (IOI) circuit in GPT-2 small">GPT-2 IOI circuit</button>
+        <button type="button" data-example="Induction heads in transformer language models performing in-context learning">induction heads</button>
         <button type="button" data-example="Saccadic decision-making in the superior colliculus">saccade decision</button>
       </div>
 
-      <button type="submit" class="primary" id="submit-btn">Analyze neural circuit</button>
+      <button type="submit" class="primary" id="submit-btn">Analyze circuit</button>
     </form>
 
     <section id="progress" hidden>
@@ -86,6 +103,12 @@
       </div>
       <ul id="event-log"></ul>
     </section>
+
+    <p class="mode-link" style="margin-top:40px; font-size:13px; color:var(--gray);">
+      Looking for the general emergence-analysis pipeline?
+      <a href="{{ url_for('classic_index') }}">Classic mode &rarr;</a>
+    </p>
+
   </main>
 
   <script src="{{ url_for('static', filename='neural_script.js') }}"></script>

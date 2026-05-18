@@ -19,7 +19,8 @@ from typing import Any
 
 try:
     from flask import (
-        Flask, Response, jsonify, render_template, request, send_from_directory,
+        Flask, Response, jsonify, redirect, render_template,
+        request, send_from_directory, url_for,
     )
 except Exception as exc:  # pragma: no cover
     raise ImportError(
@@ -70,6 +71,12 @@ def create_app(output_root: Path = DEFAULT_OUTPUT_ROOT) -> Flask:
 
     @app.route("/")
     def index():
+        # Neural-circuit mode is now the primary analysis; redirect to it.
+        return redirect(url_for("neural_index"))
+
+    @app.route("/classic")
+    def classic_index():
+        """The original general emergence-analysis pipeline."""
         api_key_set = bool(os.environ.get("ANTHROPIC_API_KEY"))
         return render_template("index.html", api_key_set=api_key_set)
 
@@ -241,6 +248,9 @@ def create_app(output_root: Path = DEFAULT_OUTPUT_ROOT) -> Flask:
         interp = res.get("interpretation")  # may be None if Agent 5 failed
         mechanism_html = _markdown_to_html(interp.get("mechanism", "")) \
             if interp else ""
+        # Check whether the paper circuit schematic was generated.
+        out_dir = output_root / job_id
+        has_paper_circuit = (out_dir / "paper_circuit.png").exists()
         return render_template(
             "neural_result.html",
             job_id=job_id,
@@ -253,6 +263,7 @@ def create_app(output_root: Path = DEFAULT_OUTPUT_ROOT) -> Flask:
             description_html=description_html,
             interpretation=interp,
             mechanism_html=mechanism_html,
+            has_paper_circuit=has_paper_circuit,
         )
 
     return app

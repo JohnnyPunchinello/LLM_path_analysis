@@ -61,6 +61,7 @@ from .neural_schemas import (
 from .neural_visualize import (
     build_path_representation,
     render_network_figure,
+    render_paper_circuit_figure,
     render_path_clusters_figure,
     render_path_representation_figure,
 )
@@ -540,6 +541,7 @@ def analyze_neural_circuit(
     spec_path = os.path.join(out_dir, "spec.json")
     path_rep_path = os.path.join(out_dir, "path_rep.json")
     network_fig = os.path.join(out_dir, "network.png")
+    paper_circuit_fig = os.path.join(out_dir, "paper_circuit.png")  # NEW: paper schematic
     paths_fig = os.path.join(out_dir, "paths.png")        # cluster-bundle view (primary)
     routes_fig = os.path.join(out_dir, "routes.png")      # per-route lane view (secondary)
     report_path = os.path.join(out_dir, "report.md")
@@ -577,6 +579,19 @@ def analyze_neural_circuit(
           f"in {time.time() - t0:.1f}s",
           verbose)
 
+    # Paper-circuit schematic figure (from Agent 1+2 data): rendered here so
+    # it is available alongside the Agent 3 network figure on the result page.
+    try:
+        render_paper_circuit_figure(paper, system_info, paper_circuit_fig)
+        _emit(on_progress, "paper_circuit", 47,
+              f"Paper circuit schematic -> "
+              f"{os.path.basename(paper_circuit_fig)}",
+              verbose)
+    except Exception as exc:
+        _emit(on_progress, "paper_circuit_warn", 47,
+              f"Paper circuit figure skipped: {exc}",
+              verbose)
+
     # ----------------------- Agent 3
     _emit(on_progress, "agent3_network", 50,
           "Agent 3: building the network representation (units, edges, "
@@ -595,6 +610,8 @@ def analyze_neural_circuit(
     with open(spec_path, "w") as f:
         json.dump(spec.to_dict(), f, indent=2)
     sys = build_system_from_spec(spec)
+    # Network figure rendered here with uniform widths (path_rep not yet
+    # available). It is re-rendered below once Agent 4 has path data.
     render_network_figure(spec, sys, network_fig,
                           title_suffix=system_info.system_name)
     _emit(on_progress, "agent3_done", 70,
@@ -623,6 +640,12 @@ def analyze_neural_circuit(
 
     with open(path_rep_path, "w") as f:
         json.dump(path_rep.to_dict(), f, indent=2)
+    # Re-render the network figure WITH flow data so edge thickness reflects
+    # real information flow from the enumerated paths.
+    render_network_figure(spec, sys, network_fig,
+                          title_suffix=system_info.system_name,
+                          path_rep=path_rep)
+
     # Primary figure: the path landscape AS the cluster bundles.
     # Each similarity mode is one band; member routes overlay as a
     # translucent bundle through shared anchor units.
@@ -704,6 +727,7 @@ def analyze_neural_circuit(
             "path_rep": path_rep_path,
             "interpretation": interpretation_path,
             "network_figure": network_fig,
+            "paper_circuit_figure": paper_circuit_fig,
             "paths_figure": paths_fig,
             "routes_figure": routes_fig,
             "report": report_path,

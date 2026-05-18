@@ -224,6 +224,10 @@ class LandscapeInterpretation:
     dominant_features: list[LandscapeFeature] = field(default_factory=list)
     mechanism: str = ""
     prediction: str = ""
+    # Which of the 4 path-landscape emergence primitives dominate.
+    # Drawn from: "Path Activation", "Path Suppression", "Mode Merge",
+    # "Mode Split".
+    primitive_operations: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, d: dict) -> "LandscapeInterpretation":
@@ -236,6 +240,7 @@ class LandscapeInterpretation:
             ],
             mechanism=d.get("mechanism", ""),
             prediction=d.get("prediction", ""),
+            primitive_operations=list(d.get("primitive_operations", []) or []),
         )
 
     def to_dict(self) -> dict:
@@ -245,6 +250,7 @@ class LandscapeInterpretation:
             "dominant_features": [f.to_dict() for f in self.dominant_features],
             "mechanism": self.mechanism,
             "prediction": self.prediction,
+            "primitive_operations": self.primitive_operations,
         }
 
 

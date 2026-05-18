@@ -142,6 +142,63 @@
     <p class="type-rationale">{{ interpretation.type_rationale }}</p>
     {% endif %}
 
+    {# ---- 4-primitive classification ---- #}
+    {% if interpretation.primitive_operations %}
+    <div class="primitives-block" style="margin:18px 0 4px;">
+      <span style="font-size:12px; font-weight:700; letter-spacing:.06em;
+                   text-transform:uppercase; color:var(--gray); display:block;
+                   margin-bottom:8px;">
+        Active emergence primitives
+      </span>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        {% for prim in interpretation.primitive_operations %}
+          {% if prim == "Path Activation" %}
+            <span style="display:inline-flex; align-items:center; gap:5px;
+                         background:#e8f5e0; border:1.5px solid #94c47d;
+                         border-radius:20px; padding:5px 14px;
+                         font-size:13px; font-weight:600; color:#3a6b28;">
+              ＋ Path Activation
+            </span>
+          {% elif prim == "Path Suppression" %}
+            <span style="display:inline-flex; align-items:center; gap:5px;
+                         background:#fde8e8; border:1.5px solid #c83c37;
+                         border-radius:20px; padding:5px 14px;
+                         font-size:13px; font-weight:600; color:#8b1a1a;">
+              ✕ Path Suppression
+            </span>
+          {% elif prim == "Mode Merge" %}
+            <span style="display:inline-flex; align-items:center; gap:5px;
+                         background:#e0f3f8; border:1.5px solid #7dc8dc;
+                         border-radius:20px; padding:5px 14px;
+                         font-size:13px; font-weight:600; color:#1a5f70;">
+              ⊕ Mode Merge
+            </span>
+          {% elif prim == "Mode Split" %}
+            <span style="display:inline-flex; align-items:center; gap:5px;
+                         background:#fdf5e0; border:1.5px solid #f0b65a;
+                         border-radius:20px; padding:5px 14px;
+                         font-size:13px; font-weight:600; color:#7a4f00;">
+              ⊗ Mode Split
+            </span>
+          {% else %}
+            <span style="display:inline-flex; align-items:center; gap:5px;
+                         background:var(--paper-2); border:1.5px solid var(--line);
+                         border-radius:20px; padding:5px 14px;
+                         font-size:13px; font-weight:600; color:var(--ink);">
+              {{ prim }}
+            </span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <p style="font-size:12px; color:var(--gray); margin:10px 0 0;">
+        <strong>＋ Path Activation</strong> = new routes open up &ensp;·&ensp;
+        <strong>✕ Path Suppression</strong> = existing routes are silenced &ensp;·&ensp;
+        <strong>⊕ Mode Merge</strong> = clusters coalesce &ensp;·&ensp;
+        <strong>⊗ Mode Split</strong> = one cluster fractures into sub-modes
+      </p>
+    </div>
+    {% endif %}
+
     {% if interpretation.dominant_features %}
     <h3>Dominant path-structural features</h3>
     <ul class="feature-list">
@@ -176,6 +233,36 @@
       <span class="section-name">Network representation</span>
     </div>
     <h2>The circuit as a directed graph (input → output, with feedback)</h2>
+
+    {% if has_paper_circuit %}
+    <p class="section-lede">
+      <strong>Left:</strong> Circuit schematic derived from the anchor paper
+      (regions, neuron types, connectivity motifs, key findings).
+      <strong>Right:</strong> Agent 3's formal directed graph with flow-weighted
+      edges.  Cyan = input units, red = output units, amber = internal units.
+      Solid arrows are feedforward connections; dashed red arrows are recurrent
+      (feedback) arcs that fire one time step later. Rounded boxes group units
+      that share a multiscale parent (region/module).
+    </p>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+      <div style="flex:1; min-width:320px;">
+        <p style="font-size:12px; color:var(--gray); margin:0 0 6px; font-weight:600; text-transform:uppercase; letter-spacing:.06em;">
+          Paper schematic (Agents 1+2)
+        </p>
+        <img src="{{ url_for('file', job_id=job_id, filename='paper_circuit.png') }}"
+             alt="Paper circuit schematic for {{ phenomenon }}"
+             style="width:100%; border-radius:6px; border:1px solid var(--line);" />
+      </div>
+      <div style="flex:1; min-width:320px;">
+        <p style="font-size:12px; color:var(--gray); margin:0 0 6px; font-weight:600; text-transform:uppercase; letter-spacing:.06em;">
+          Formal network graph (Agent 3)
+        </p>
+        <img src="{{ url_for('file', job_id=job_id, filename='network.png') }}"
+             alt="Network representation for {{ phenomenon }}"
+             style="width:100%; border-radius:6px; border:1px solid var(--line);" />
+      </div>
+    </div>
+    {% else %}
     <p class="section-lede">
       Cyan = input units, red = output units, amber = internal units.
       Solid black arrows are feedforward connections; dashed red arrows are
@@ -184,6 +271,7 @@
     </p>
     <img src="{{ url_for('file', job_id=job_id, filename='network.png') }}"
          alt="Network representation for {{ phenomenon }}" />
+    {% endif %}
   </section>
 
   {# ============================== Agent 2 — neural system ================= #}
@@ -357,6 +445,9 @@
     <a class="download" href="{{ url_for('file', job_id=job_id, filename='paper.json') }}" download>paper.json</a>
     <a class="download" href="{{ url_for('file', job_id=job_id, filename='neural_system.json') }}" download>neural_system.json</a>
     <a class="download" href="{{ url_for('file', job_id=job_id, filename='path_rep.json') }}" download>path_rep.json</a>
+    {% if has_paper_circuit %}
+    <a class="download" href="{{ url_for('file', job_id=job_id, filename='paper_circuit.png') }}" download>paper_circuit.png</a>
+    {% endif %}
     <a class="download" href="{{ url_for('file', job_id=job_id, filename='network.png') }}" download>network.png</a>
     <a class="download" href="{{ url_for('file', job_id=job_id, filename='paths.png') }}" download>paths.png</a>
     <a class="download" href="{{ url_for('file', job_id=job_id, filename='routes.png') }}" download>routes.png</a>

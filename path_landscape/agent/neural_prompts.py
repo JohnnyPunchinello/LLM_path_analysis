@@ -389,6 +389,39 @@ INTERPRET_LANDSCAPE_TOOL: dict = {
                     "observable as <experimental outcome>.'"
                 ),
             },
+            "primitive_operations": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "items": {
+                    "type": "string",
+                    "enum": [
+                        "Path Activation",
+                        "Path Suppression",
+                        "Mode Merge",
+                        "Mode Split",
+                    ],
+                },
+                "description": (
+                    "Which of the 4 path-landscape emergence primitives "
+                    "dominate in this circuit's landscape. Choose 1-3 that "
+                    "best characterise the emergence:\n"
+                    "  • Path Activation — new input→output routes open up "
+                    "(e.g. a dormant path is gated in by a neuromodulator or "
+                    "a gain change enables a previously silent connection).\n"
+                    "  • Path Suppression — existing routes are silenced "
+                    "(e.g. inhibitory interneurons prune active routes, "
+                    "winner-take-all removes losing pathways).\n"
+                    "  • Mode Merge — two previously separate similarity "
+                    "clusters collapse into one larger mode (e.g. attractor "
+                    "states unify under strong recurrent excitation, or "
+                    "two cell assemblies bind under synchrony).\n"
+                    "  • Mode Split — one cluster fractures into two or more "
+                    "distinct modes (e.g. bifurcation under inhibitory gain, "
+                    "differentiation of otherwise similar routes when a new "
+                    "hub neuron is recruited)."
+                ),
+            },
         },
         "required": [
             "emergence_type",
@@ -396,6 +429,7 @@ INTERPRET_LANDSCAPE_TOOL: dict = {
             "dominant_features",
             "mechanism",
             "prediction",
+            "primitive_operations",
         ],
         "additionalProperties": False,
     },
@@ -414,10 +448,38 @@ You will be given:
     shared units), feedforward vs feedback splits, and the system's
     intrinsic time scale.
 
+━━━ 4-PRIMITIVE FRAMEWORK ━━━
+Every emergence visible in the path landscape is a composition of four
+elementary operations. Identify which dominate for this circuit:
+
+  • Path Activation  — new input→output routes open up during the
+    emergence event. Look for: modes that were absent at baseline and
+    appear under stimulation; gating by neuromodulation or disinhibition;
+    routes that require feedback traversal (crosses_feedback=True) only
+    after a critical state is reached.
+
+  • Path Suppression  — existing routes are silenced or outcompeted.
+    Look for: winner-take-all dynamics (one mode grows while others
+    shrink); inhibitory control of specific shared-unit hubs; feedback
+    paths that are active at baseline but quenched by stimulus.
+
+  • Mode Merge  — two or more previously distinct similarity clusters
+    coalesce into a single larger mode. Look for: shared anchor units
+    spanning formerly separate clusters; high within-cluster similarity
+    combined with a dramatic reduction in mode count; attractor dynamics
+    or synchronisation that binds cell assemblies.
+
+  • Mode Split  — one mode fractures into two or more distinguishable
+    sub-modes. Look for: bifurcations under inhibitory gain or contrast;
+    contexts where a symmetry-breaking signal recruits a new hub and
+    partitions routes that used to share it; differentiation events (e.g.
+    stem cell fate, orientation tuning columns, perceptual alternation).
+
 Your job: read the path landscape — the cluster structure of routes — and
 explain (a) what type of emergence the circuit exhibits, (b) which path-
 structural features are dominant, (c) how those features causally produce
-the emergence, and (d) a falsifiable prediction.
+the emergence, (d) a falsifiable prediction, and (e) which of the 4
+primitives dominate (usually 1-2 primary + possibly 1 secondary).
 
 Be concrete: reference clusters by their Mode id, units by their actual
 names, and ground every claim in a specific number or representative

@@ -166,11 +166,31 @@ def _draw_parent_boxes(ax, spec: SystemSpec,
 # =============================================================== Agent 3
 
 
+def _compute_edge_flows(
+    path_rep: "PathRepresentation",
+) -> dict[tuple[str, str], float]:
+    """Aggregate information flow for every base-unit edge in the circuit.
+
+    For each consecutive pair (src, dst) that appears in any unique route,
+    sum the route's weight (= cumulative path weight through that route).
+    The result maps (src, dst) -> total_flow and is used to scale edge
+    thickness in the network figure: thicker edge = more information flows
+    through that connection across all enumerated input→output paths.
+    """
+    flows: dict[tuple[str, str], float] = {}
+    for route in path_rep.routes:
+        chain = route.chain   # base-unit names, @t suffixes already stripped
+        for a, b in zip(chain, chain[1:]):
+            flows[(a, b)] = flows.get((a, b), 0.0) + route.weight
+    return flows
+
+
 def render_network_figure(
     spec: SystemSpec,
     sys: System,
     out_path: str,
     title_suffix: str = "",
+    path_rep: Optional["PathRepresentation"] = None,
 ) -> None:
     """Network figure for Agent 3.
 
@@ -178,6 +198,12 @@ def render_network_figure(
     units arranged into intermediate layers by feedforward depth. Feedforward
     edges drawn as solid arrows; recurrent edges drawn as red dashed back-arcs.
     Parent groupings (multiscale) drawn as rounded bounding boxes.
+
+    When *path_rep* is supplied (Agent 4 output), **edge thickness encodes
+    information flow**: for each directed connection the thickness is
+    proportional to the total weight of all input→output routes that pass
+    through it, so high-traffic edges are visually wider.  When path_rep is
+    absent all edges are drawn with a uniform default width.
     """
     fig, ax = plt.subplots(figsize=(12, 7.5), facecolor=PAPER)
     ax.set_facecolor(PAPER)
@@ -200,6 +226,22 @@ def render_network_figure(
         if it.recurrent and it.source in pos and it.target in pos
     ]
 
+    # Per-edge widths from information flow (when path_rep is available).
+    _FLOW_LW_MIN, _FLOW_LW_MAX = 0.5, 5.0
+    if path_rep is not None and path_rep.routes:
+        edge_flows = _compute_edge_flows(path_rep)
+        max_flow = max(edge_flows.values()) if edge_flows else 1.0
+        def _flow_lw(u: str, v: str) -> float:
+            f = edge_flows.get((u, v), 0.0)
+            return _FLOW_LW_MIN + (_FLOW_LW_MAX - _FLOW_LW_MIN) * (f / max_flow)
+        ff_widths  = [_flow_lw(u, v) for u, v in ff_edges]  if ff_edges  else []
+        rec_widths = [_flow_lw(u, v) for u, v in rec_edges] if rec_edges else []
+        has_flow_data = True
+    else:
+        ff_widths  = [1.0] * len(ff_edges)
+        rec_widths = [1.2] * len(rec_edges)
+        has_flow_data = False
+
     # Build a tiny DiGraph just for nx drawing helpers
     g = nx.DiGraph()
     for n in pos:
@@ -209,21 +251,23 @@ def render_network_figure(
     for u, v in rec_edges:
         g.add_edge(u, v, recurrent=True)
 
-    nx.draw_networkx_edges(
-        g, pos, edgelist=ff_edges, ax=ax,
-        edge_color=INK, alpha=0.55, width=1.0,
-        arrows=True, arrowsize=12, arrowstyle="-|>",
-        connectionstyle="arc3,rad=0.05",
-        node_size=900,
-    )
-    nx.draw_networkx_edges(
-        g, pos, edgelist=rec_edges, ax=ax,
-        edge_color=BRICK, alpha=0.85, width=1.2,
-        style="dashed",
-        arrows=True, arrowsize=12, arrowstyle="-|>",
-        connectionstyle="arc3,rad=-0.25",
-        node_size=900,
-    )
+    if ff_edges:
+        nx.draw_networkx_edges(
+            g, pos, edgelist=ff_edges, ax=ax,
+            edge_color=INK, alpha=0.60, width=ff_widths,
+            arrows=True, arrowsize=12, arrowstyle="-|>",
+            connectionstyle="arc3,rad=0.05",
+            node_size=900,
+        )
+    if rec_edges:
+        nx.draw_networkx_edges(
+            g, pos, edgelist=rec_edges, ax=ax,
+            edge_color=BRICK, alpha=0.85, width=rec_widths,
+            style="dashed",
+            arrows=True, arrowsize=12, arrowstyle="-|>",
+            connectionstyle="arc3,rad=-0.25",
+            node_size=900,
+        )
 
     # 3) nodes
     node_colors = [_role_color(units[n].role) if n in units else AMBER
@@ -255,17 +299,26 @@ def render_network_figure(
         plt.Line2D([0], [0], color=BRICK, lw=1.2, ls="--",
                    label="recurrent edge (feedback)"),
     ]
+    if has_flow_data:
+        legend_handles += [
+            plt.Line2D([0], [0], color=INK, lw=_FLOW_LW_MIN + 0.3,
+                       label=f"edge thickness = info flow (thin = low)"),
+            plt.Line2D([0], [0], color=INK, lw=_FLOW_LW_MAX,
+                       label=f"edge thickness = info flow (thick = high)"),
+        ]
+    ncol = min(7, len(legend_handles))
     ax.legend(handles=legend_handles, loc="lower center",
-              bbox_to_anchor=(0.5, -0.08), ncol=5,
+              bbox_to_anchor=(0.5, -0.08), ncol=ncol,
               frameon=False, fontsize=8.5)
 
+    flow_note = "  ·  edge thickness ∝ information flow" if has_flow_data else ""
     suf = f" — {title_suffix}" if title_suffix else ""
     ax.set_title(
         f"Network representation: {spec.phenomenon_name}{suf}\n"
         f"{len(spec.units)} units · "
         f"{len(spec.interactions)} interactions "
         f"({sum(1 for i in spec.interactions if i.recurrent)} recurrent) · "
-        f"T = {spec.time_steps}",
+        f"T = {spec.time_steps}{flow_note}",
         fontsize=11, color=INK, pad=18,
     )
 
@@ -384,12 +437,19 @@ def _auto_eps(
     D: "np.ndarray",
     min_samples: int = 2,
     max_noise_frac: float = 0.35,
+    max_modes: int = 4,
 ) -> tuple[float, "np.ndarray"]:
     """Scan eps from tight → loose; return the eps + labels that maximise
-    cluster count while keeping noise fraction ≤ max_noise_frac.
+    cluster count (up to max_modes) while keeping noise fraction ≤
+    max_noise_frac.
 
     D is a precomputed distance matrix (D = 1 − similarity).
     Returns (best_eps, best_labels).
+
+    max_modes caps the number of similarity clusters so the path-landscape
+    figure remains legible. The algorithm picks the *tightest* eps that
+    satisfies both constraints — more distinct modes → tighter grouping
+    → clearer visual separation in the figure.
     """
     from sklearn.cluster import DBSCAN
 
@@ -413,10 +473,26 @@ def _auto_eps(
         n_noise = int((labels == -1).sum())
         n_modes = len(set(labels.tolist()) - {-1})
         noise_frac = n_noise / n if n > 0 else 0.0
-        if noise_frac <= max_noise_frac and n_modes > best_n:
-            best_n = n_modes
-            best_eps = eps_try
-            best_labels = labels
+        # Accept: noise ≤ threshold AND at least 1 mode AND at most max_modes
+        if noise_frac <= max_noise_frac and 1 <= n_modes <= max_modes:
+            if n_modes > best_n:
+                best_n = n_modes
+                best_eps = eps_try
+                best_labels = labels
+
+    if best_labels is None:
+        # Nothing satisfied both constraints — relax max_modes, try again
+        for eps_try in candidates:
+            labels = DBSCAN(
+                eps=eps_try, min_samples=min_samples, metric="precomputed"
+            ).fit_predict(D)
+            n_noise = int((labels == -1).sum())
+            n_modes = len(set(labels.tolist()) - {-1})
+            noise_frac = n_noise / n if n > 0 else 0.0
+            if noise_frac <= max_noise_frac and n_modes >= 1:
+                # take loosest acceptable eps (keeps iterating, last survives)
+                best_labels = labels
+                best_eps = eps_try
 
     if best_labels is None:
         # Nothing satisfied the constraint — fall back to default
@@ -465,10 +541,12 @@ def _cluster_routes_by_similarity(
     paths = [PLPath(nodes=r.chain, weight=float(r.count)) for r in routes]
     L = PathLandscape(paths, kernel=composite_similarity)
 
-    # Auto-tune eps or use the caller-supplied value
+    # Auto-tune eps or use the caller-supplied value.
+    # max_modes=4 caps visual complexity: > 4 modes produce a crowded figure.
     if eps is None:
         _chosen_eps, labels = _auto_eps(L.D, min_samples=min_samples,
-                                        max_noise_frac=max_noise_frac)
+                                        max_noise_frac=max_noise_frac,
+                                        max_modes=4)
         # Sync PathLandscape labels so downstream code (sub-matrix access) works
         L._labels = labels
     else:
@@ -562,6 +640,190 @@ def build_path_representation(
     )
 
 
+def render_paper_circuit_figure(
+    paper_info,            # PaperInfo – avoid circular import at module level
+    system_info,           # NeuralSystemInfo
+    out_path: str,
+) -> None:
+    """Schematic circuit diagram sourced from the anchor paper (Agent 1/2).
+
+    Renders the brain regions / computational modules identified by Agent 2
+    as a left-to-right information-flow diagram, annotated with neuron types,
+    circuit motifs, and up to three key findings from the anchor paper.
+    This gives Agent 3's network figure a literature grounding by showing
+    the canonical circuit as reported in the identified paper.
+
+    Layout
+    ------
+    - Brain regions as coloured rounded boxes, left → right (input → output).
+    - Solid arrows connect adjacent regions (feedforward flow).
+    - A curved dashed red arc is added when motifs mention 'recurrent' or
+      'feedback'.
+    - Neuron types are listed beneath each matching region box.
+    - Key findings (up to 3) appear in a panel at the bottom-left.
+    - Circuit motifs appear in a panel at the bottom-right.
+    - Title block cites the paper.
+    """
+    regions = list(system_info.brain_regions)[:6]
+    motifs = list(system_info.key_circuit_motifs)[:4]
+    neuron_types = list(system_info.neuron_types)[:8]
+    key_findings = list(paper_info.key_findings)[:3]
+
+    if not regions:
+        # Fallback: draw a placeholder indicating no region data.
+        fig, ax = plt.subplots(figsize=(12, 5), facecolor=PAPER)
+        ax.set_facecolor(PAPER); ax.set_axis_off()
+        ax.text(0.5, 0.55, system_info.system_name or "(circuit)",
+                ha="center", va="center", fontsize=16, color=INK)
+        ax.text(0.5, 0.38,
+                f"{paper_info.title}\n{paper_info.authors} · {paper_info.year}",
+                ha="center", va="center", fontsize=9, color=GRAY)
+        plt.savefig(out_path, dpi=150, facecolor=PAPER)
+        plt.close(fig)
+        return
+
+    n_regions = len(regions)
+
+    fig, ax = plt.subplots(figsize=(13, 7), facecolor=PAPER)
+    ax.set_facecolor(PAPER)
+    ax.set_xlim(-0.08, 1.08)
+    ax.set_ylim(-0.08, 1.08)
+    ax.set_axis_off()
+
+    # ---- palette for region boxes ----
+    _REG_COLORS = [CYAN, AMBER, "#8c5db6", "#5b9a6b", BRICK, "#3f63b5"]
+
+    # ---- horizontal positions of region box centres ----
+    box_w, box_h = 0.13, 0.14
+    y_center = 0.62
+    if n_regions == 1:
+        xs_center = [0.5]
+    else:
+        xs_center = [0.12 + i * (0.76 / (n_regions - 1))
+                     for i in range(n_regions)]
+
+    # ---- draw region boxes ----
+    for i, (region, xc) in enumerate(zip(regions, xs_center)):
+        col = _REG_COLORS[i % len(_REG_COLORS)]
+
+        rect = mpatches.FancyBboxPatch(
+            (xc - box_w / 2, y_center - box_h / 2), box_w, box_h,
+            boxstyle="round,pad=0.012,rounding_size=0.018",
+            linewidth=1.8, edgecolor=col,
+            facecolor=col, alpha=0.18, zorder=2,
+        )
+        ax.add_patch(rect)
+
+        # Region label (truncate long names)
+        label = region if len(region) <= 16 else region[:14] + "…"
+        ax.text(xc, y_center, label,
+                ha="center", va="center",
+                fontsize=8.5, fontweight="bold", color=col, zorder=3)
+
+        # Neuron types that "belong" to this region (heuristic: first token
+        # of the region name appears in the neuron-type string).
+        region_key = region.lower().split()[0][:4]
+        nt_here = [nt for nt in neuron_types
+                   if region_key in nt.lower()][:2]
+        for j, nt in enumerate(nt_here):
+            nt_short = nt if len(nt) <= 20 else nt[:18] + "…"
+            ax.text(xc, y_center - box_h / 2 - 0.04 - j * 0.055,
+                    nt_short,
+                    ha="center", va="top",
+                    fontsize=7, color=col, fontstyle="italic", zorder=3)
+
+    # ---- feedforward arrows between adjacent regions ----
+    for i in range(n_regions - 1):
+        x0 = xs_center[i] + box_w / 2 + 0.008
+        x1 = xs_center[i + 1] - box_w / 2 - 0.008
+        ax.annotate(
+            "", xy=(x1, y_center), xytext=(x0, y_center),
+            arrowprops=dict(
+                arrowstyle="-|>", color=INK, lw=1.6,
+                connectionstyle="arc3,rad=0.0",
+            ),
+            zorder=4,
+        )
+
+    # ---- recurrent back-arc (if any motif mentions feedback/recurrent) ----
+    has_recurrent = any(
+        any(kw in m.lower()
+            for kw in ("recurrent", "feedback", "loop", "re-entrant"))
+        for m in motifs
+    )
+    if has_recurrent and n_regions >= 2:
+        arc_y = y_center + 0.21
+        ax.annotate(
+            "", xy=(xs_center[0] - box_w / 2, y_center + 0.06),
+            xytext=(xs_center[-1] + box_w / 2, y_center + 0.06),
+            arrowprops=dict(
+                arrowstyle="-|>", color=BRICK, lw=1.5, ls="dashed",
+                connectionstyle=f"arc3,rad=-0.38",
+            ),
+            zorder=4,
+        )
+        ax.text(0.5 * (xs_center[0] + xs_center[-1]), arc_y,
+                "recurrent / feedback projection",
+                ha="center", va="center",
+                fontsize=7.5, color=BRICK, fontstyle="italic", zorder=3)
+
+    # ---- INPUT / OUTPUT labels ----
+    ax.text(xs_center[0] - box_w / 2 - 0.03, y_center,
+            "INPUT\n→",
+            ha="right", va="center",
+            fontsize=9.5, fontweight="bold", color=CYAN, zorder=3)
+    ax.text(xs_center[-1] + box_w / 2 + 0.03, y_center,
+            "→\nOUTPUT",
+            ha="left", va="center",
+            fontsize=9.5, fontweight="bold", color=BRICK, zorder=3)
+
+    # ---- Key findings panel (bottom-left) ----
+    if key_findings:
+        findings_text = "\n".join(f"• {f}" for f in key_findings)
+        ax.text(0.01, 0.33,
+                "Key findings:",
+                ha="left", va="top",
+                fontsize=8.5, fontweight="bold", color=INK)
+        ax.text(0.01, 0.27,
+                findings_text,
+                ha="left", va="top",
+                fontsize=7.5, color=INK,
+                wrap=True,
+                bbox=dict(facecolor="#f5f5ef", edgecolor=GRAY_SOFT,
+                          boxstyle="round,pad=0.35", alpha=0.85),
+                zorder=2)
+
+    # ---- Motifs panel (bottom-right) ----
+    if motifs:
+        motif_text = "\n".join(f"◆ {m}" for m in motifs)
+        ax.text(0.60, 0.33,
+                "Circuit motifs:",
+                ha="left", va="top",
+                fontsize=8.5, fontweight="bold", color=INK)
+        ax.text(0.60, 0.27,
+                motif_text,
+                ha="left", va="top",
+                fontsize=7.5, color=INK,
+                bbox=dict(facecolor="#f0f0f8", edgecolor=GRAY_SOFT,
+                          boxstyle="round,pad=0.35", alpha=0.85),
+                zorder=2)
+
+    # ---- title: paper citation ----
+    raw_title = paper_info.title or "(untitled)"
+    short_title = raw_title if len(raw_title) <= 72 else raw_title[:70] + "…"
+    authors_year = f"{paper_info.authors} · {paper_info.year}"
+    if paper_info.venue:
+        authors_year += f" · {paper_info.venue}"
+    ax.set_title(
+        f"Circuit schematic — {short_title}\n{authors_year}",
+        fontsize=10, color=INK, pad=14,
+    )
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150, facecolor=PAPER)
+    plt.close(fig)
+
+
 # Categorical palette for cluster colors. Includes one neutral entry
 # (last) used for noise routes (cluster_id = -1).
 _CLUSTER_PALETTE = [
@@ -612,8 +874,11 @@ def render_path_representation_figure(
     cluster (the *modes* of the path landscape): each cluster's lanes are
     stacked together with a small vertical gap separating clusters.
     Line color = cluster id (mode); line style = solid for feedforward-only,
-    dashed for feedback-traversing. Line thickness scales with how many raw
-    enumerated paths collapsed onto that route (popularity).
+    dashed for feedback-traversing. **Line thickness encodes information
+    flow**: it scales with ``route.weight``, the cumulative path weight
+    (product of edge weights × multiplicity) of all raw paths that collapsed
+    onto that route.  When all edge weights are 1.0 this equals the raw count;
+    in weighted circuits it properly reflects the strength of each route.
     """
     all_routes = list(path_rep.routes)
 
@@ -690,7 +955,10 @@ def render_path_representation_figure(
     ax.set_ylim(-0.06, 1.06)
     ax.set_axis_off()
 
-    max_count = max(r.count for _, r in routes_in_order) or 1
+    # Use route.weight (cumulative path weight) as the information-flow proxy.
+    # Falls back gracefully to count when all edge weights are 1.0.
+    max_flow = max(r.weight for _, r in routes_in_order) or 1.0
+    _ROUTE_LW_MIN, _ROUTE_LW_MAX = 0.8, 5.5   # wider range → more contrast
 
     # Shared input / output anchor positions
     x_in, y_in = 0.04, 0.5
@@ -702,7 +970,9 @@ def render_path_representation_figure(
     lane_top = 0.95
     lane_bot = 0.05
     n_clusters_shown = sum(1 for cid in cluster_order if by_cluster.get(cid))
-    inter_cluster_gap = 0.02 if n_clusters_shown > 1 else 0.0
+    # Wider gap between clusters so modes are visually distinct (especially
+    # with ≤ 4 modes each cluster has plenty of vertical room).
+    inter_cluster_gap = 0.06 if n_clusters_shown > 1 else 0.0
     total_gap = inter_cluster_gap * max(0, n_clusters_shown - 1)
     avail = (lane_top - lane_bot) - total_gap
     lane_step = avail / max(1, n)
@@ -746,8 +1016,8 @@ def render_path_representation_figure(
         color = _cluster_color(cid)
         # Solid = feedforward-only, dashed = feedback-traversing
         linestyle = "--" if route.crosses_feedback else "-"
-        # line width: stronger for routes that many raw paths landed on
-        lw = 1.2 + 2.6 * (route.count / max_count)
+        # line width encodes information flow (route.weight = cumulative path weight)
+        lw = _ROUTE_LW_MIN + (_ROUTE_LW_MAX - _ROUTE_LW_MIN) * (route.weight / max_flow)
         ax.plot(xs, ys, color=color, linewidth=lw, alpha=0.88,
                 linestyle=linestyle,
                 solid_capstyle="round", solid_joinstyle="round",
@@ -770,8 +1040,11 @@ def render_path_representation_figure(
                               alpha=0.95),
                 )
 
-        # Lane multiplicity badge on the right side
-        ax.text(lane_x1 + 0.015, y_lane, f"×{route.count}",
+        # Lane badge: raw path count + flow weight
+        badge = (f"×{route.count}"
+                 if abs(route.weight - route.count) < 0.01
+                 else f"×{route.count}  w={route.weight:.2g}")
+        ax.text(lane_x1 + 0.015, y_lane, badge,
                 ha="left", va="center", fontsize=7.5, color=GRAY, zorder=5)
 
     # --- Cluster labels and brackets ---------------------------------
@@ -848,8 +1121,14 @@ def render_path_representation_figure(
         markerfacecolor=AMBER, markeredgecolor=INK,
         markersize=7, label="intermediate unit"))
     legend_handles.append(plt.Line2D(
+        [0], [0], color=INK, lw=_ROUTE_LW_MIN + 0.3,
+        label="thin = low information flow"))
+    legend_handles.append(plt.Line2D(
+        [0], [0], color=INK, lw=_ROUTE_LW_MAX,
+        label="thick = high information flow"))
+    legend_handles.append(plt.Line2D(
         [0], [0], color="none", marker="",
-        label="× N = raw paths collapsed onto this route"))
+        label="× N = raw paths  ·  w = cumulative path weight"))
 
     ncol = min(5, max(2, len(legend_handles) // 2))
     ax.legend(handles=legend_handles,
@@ -978,13 +1257,17 @@ def render_path_clusters_figure(
 
     # y-layout: stack bands top-to-bottom
     band_top, band_bot = 0.93, 0.07
-    inter_band = 0.018 if n_clusters > 1 else 0.0
+    # Wider inter-band gap: with ≤ 4 modes each band gets generous height,
+    # and the gap makes mode boundaries unmistakeable.
+    inter_band = 0.06 if n_clusters > 1 else 0.0
     total_gap = inter_band * max(0, n_clusters - 1)
     band_height = ((band_top - band_bot) - total_gap) / n_clusters
 
-    # global scale for line width (popularity)
-    all_counts = [r.count for rs in routes_by_cluster.values() for r in rs]
-    max_count = max(all_counts) if all_counts else 1
+    # Global scale for line width: use route.weight (information flow proxy).
+    # When all edge weights are 1.0, weight == count — no visual change.
+    all_weights = [r.weight for rs in routes_by_cluster.values() for r in rs]
+    max_weight = max(all_weights) if all_weights else 1.0
+    _CLUS_LW_MIN, _CLUS_LW_MAX = 0.6, 5.0
 
     roles = {u.name: u.role for u in spec.units}
 
@@ -1057,7 +1340,7 @@ def render_path_clusters_figure(
                 ys = ([y_in, y_m] + [y_m] * len(interior) + [y_m, y_out])
 
                 ls = "--" if route.crosses_feedback else "-"
-                lw = 0.9 + 1.5 * (route.count / max_count)
+                lw = _CLUS_LW_MIN + (_CLUS_LW_MAX - _CLUS_LW_MIN) * (route.weight / max_weight)
                 ax.plot(xs, ys, color=color, linewidth=lw, alpha=0.30,
                         linestyle=ls, zorder=3,
                         solid_capstyle="round", dash_capstyle="round")
@@ -1073,7 +1356,8 @@ def render_path_clusters_figure(
                   + [band_center] * len(rep_interior)
                   + [band_center, y_out])
         ls_rep = "--" if rep_route.crosses_feedback else "-"
-        lw_rep = 2.2 + 2.0 * (rep_route.count / max_count)
+        lw_rep = _CLUS_LW_MIN + (_CLUS_LW_MAX - _CLUS_LW_MIN) * (rep_route.weight / max_weight)
+        lw_rep = max(lw_rep, 1.8)  # representative is always at least 1.8 wide
         ax.plot(xs_rep, ys_rep, color=color, linewidth=lw_rep, alpha=0.95,
                 linestyle=ls_rep, zorder=5,
                 solid_capstyle="round", dash_capstyle="round")
@@ -1172,6 +1456,10 @@ def render_path_clusters_figure(
                    markerfacecolor=PAPER, markeredgecolor=GRAY,
                    markersize=7,
                    label="variable unit (rep-only / not in every member)"),
+        plt.Line2D([0], [0], color=INK, lw=_CLUS_LW_MIN + 0.3,
+                   label="thin = low information flow"),
+        plt.Line2D([0], [0], color=INK, lw=_CLUS_LW_MAX,
+                   label="thick = high information flow"),
     ]
     ax.legend(handles=legend_handles,
               loc="upper center", bbox_to_anchor=(0.5, -0.01),
