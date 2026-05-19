@@ -1,0 +1,31 @@
+# Fly.io config for the path-landscape webapp.
+# Deploy:
+#   1. brew install flyctl   (or curl -L https://fly.io/install.sh | sh)
+#   2. fly auth signup
+#   3. fly launch --no-deploy --copy-config   (uses this file)
+#   4. fly secrets set ANTHROPIC_API_KEY=sk-ant-...
+#   5. fly deploy
+app = "path-landscape"
+primary_region = "iad"        # Ashburn, Virginia. Pick the region near you.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  PATH_LANDSCAPE_OUT = "/data/runs"
+
+[[mounts]]
+  source = "path_landscape_runs"
+  destination = "/data/runs"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"      # save money: stop when idle
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"                   # matplotlib + scikit-learn need ~500MB

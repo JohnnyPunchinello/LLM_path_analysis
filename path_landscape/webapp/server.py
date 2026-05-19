@@ -386,12 +386,18 @@ def _run_neural_job(app: Flask, job_id: str) -> None:
 def run_server(host: str = "127.0.0.1", port: int = 5174,
                output_root: Path = DEFAULT_OUTPUT_ROOT) -> None:
     """Entry point for `python -m path_landscape.webapp`."""
-    app = create_app(output_root=output_root)
+    local_app = create_app(output_root=output_root)
     print(f"  path-landscape agent UI: http://{host}:{port}")
     print(f"  output directory       : {output_root.resolve()}")
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("  WARNING: ANTHROPIC_API_KEY is not set; runs will fail until it is.")
-    app.run(host=host, port=port, threaded=True, debug=False)
+    local_app.run(host=host, port=port, threaded=True, debug=False)
+
+
+# Module-level Flask app for production WSGI servers (gunicorn, uwsgi, etc.).
+# Usage:  gunicorn 'path_landscape.webapp.server:app'
+# Honors $PATH_LANDSCAPE_OUT to choose the output directory.
+app = create_app(output_root=DEFAULT_OUTPUT_ROOT)
 
 
 if __name__ == "__main__":

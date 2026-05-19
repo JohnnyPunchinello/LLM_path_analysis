@@ -1,0 +1,29 @@
+# Things we don't want in the build context (smaller = faster build)
+.git
+.gitignore
+.venv
+.venv/
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+.DS_Store
+
+# Local-only outputs
+.deploy_logs/
+emergence_analysis/
+emergence_analysis_web/
+
+# Local-only docs / large files
+paper/
+paper_manuscript/
+*.pdf
+*.tex
+*.png
+
+# Demo scripts not needed in the container
+demo*.py
+
+# IDE
+.idea/
+.vscode/

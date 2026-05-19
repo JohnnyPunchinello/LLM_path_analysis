@@ -1,0 +1,22 @@
+# Render Blueprint for the path-landscape webapp.
+# Push this file to your GitHub repo; on Render, click "New +" -> "Blueprint"
+# and select the repo. Render reads this file and provisions the service.
+#
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: path-landscape
+    runtime: docker
+    plan: starter           # $7/month; "free" is also valid but spins down idle
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true        # redeploy on every git push
+    healthCheckPath: /
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false         # set this manually in the Render dashboard
+      - key: PATH_LANDSCAPE_OUT
+        value: /data/runs
+    disk:
+      name: path-landscape-runs
+      mountPath: /data/runs
+      sizeGB: 1             # holds the per-job artifacts (figures, JSON, reports)
