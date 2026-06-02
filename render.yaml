@@ -3,11 +3,21 @@
 # and select the repo. Render reads this file and provisions the service.
 #
 # Docs: https://render.com/docs/blueprint-spec
+#
+# This config defaults to the FREE tier so you don't get billed during setup.
+# Tradeoffs of the free tier:
+#   - service sleeps after 15 min idle -> first request takes ~30s to wake
+#   - no persistent disk: analysis results are wiped on every restart
+#   - 512 MB RAM (tight but enough for small/medium circuits)
+#
+# To upgrade to always-warm + persistent results:
+#   1. change `plan: free` -> `plan: starter` ($7/mo)
+#   2. uncomment the `disk:` block and add `PATH_LANDSCAPE_OUT: /data/runs` env var
 services:
   - type: web
     name: path-landscape
     runtime: docker
-    plan: starter           # $7/month; "free" is also valid but spins down idle
+    plan: free
     dockerfilePath: ./Dockerfile
     autoDeploy: true        # redeploy on every git push
     healthCheckPath: /
@@ -15,8 +25,10 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false         # set this manually in the Render dashboard
       - key: PATH_LANDSCAPE_OUT
-        value: /data/runs
-    disk:
-      name: path-landscape-runs
-      mountPath: /data/runs
-      sizeGB: 1             # holds the per-job artifacts (figures, JSON, reports)
+        value: /tmp/runs    # ephemeral on free tier (no disk)
+
+    # --- Uncomment the block below to enable persistent storage on Starter plan ---
+    # disk:
+    #   name: path-landscape-runs
+    #   mountPath: /data/runs
+    #   sizeGB: 1
