@@ -7,24 +7,29 @@ Compute and plot the *distribution of dead attention heads across layers* for a
 model + task suite, producing one bar chart per task in the same style as the
 `*_dead_heads.png` figures analysed previously.
 
-WHY A SEPARATE SCRIPT
----------------------
-`active_subgraph_dot.py` measures head activity via gradient x activation
-attribution.  On a 70B model loaded in bfloat16 with CPU offloading, a full
-backward pass through 80 offloaded layers is impractical (and, before the
-recent dtype fix, produced all-zero scores).  This script instead uses a
-*gradient-free* head-activity measure that needs only a forward pass:
+TWO METRICS
+-----------
+A head (l,h) is DEAD iff  activity(l,h) < tau * max_h' activity(l,h').  The
+activity signal is selectable:
 
-    activity(l, h) = || z_{l,h} ||_2        (per-head attention output norm)
-    head (l,h) is DEAD  iff  activity(l,h) < tau * max_h' activity(l,h')
+  --metric attribution   (DEFAULT)  gradient x activation attribution of the
+      per-head output toward the target logit.  This is *identical* to the
+      criterion behind the original GPT-2 / Pythia *_dead_heads figures (it
+      delegates to `compute_per_head_scores` + `_active_heads`), so numbers are
+      directly comparable.  Needs a backward pass; slow on an offloaded 70B but
+      works now that the anchor-dtype bug is fixed.
 
-where z is the per-head value-weighted output captured at `blocks.l.attn.hook_z`
-(shape [batch, seq, n_heads, d_head]).  This is robust, fast, and works
-identically on TransformerLens models (small) and the native-hook `_HFHookedModel`
-wrapper (large / 70B).
+  --metric magnitude     gradient-free per-head attention-output norm ||z_{l,h}||
+      (forward pass only).  Robust on very large / CPU-offloaded models where a
+      backward pass is impractical.  Not directly comparable to attribution
+      numbers (it tends to read a higher dead fraction, especially under GQA).
 
-It also DUMPS THE RAW NUMBERS (per-layer dead counts and per-head norms) to JSON
-so the underlying data is preserved and never has to be recovered from a PNG.
+z is captured at `blocks.l.attn.hook_z` (shape [batch, seq, n_heads, d_head]);
+both metrics work on TransformerLens models (small) and the native-hook
+`_HFHookedModel` wrapper (large / 70B).
+
+It DUMPS THE RAW NUMBERS (per-layer dead counts and per-head scores) to JSON so
+the underlying data is preserved and never has to be recovered from a PNG.
 
 USAGE
 -----
@@ -33,6 +38,7 @@ USAGE
         --device cuda \
         --hf_token hf_xxx \
         --suite complexity_gradient \
+        --metric attribution \
         --out graphs_70b_deadheads
 
 Outputs, per task i:
@@ -48,29 +54,66 @@ from pathlib import Path
 import numpy as np
 import torch
 
-# Reuse the (already-working) loader and task suites from the main pipeline.
-from active_subgraph_dot import load_model, TASK_SUITES
+# Reuse the (already-working) loader, task suites, and — for the attribution
+# metric — the exact per-head scoring used to produce the original figures.
+from active_subgraph_dot import (
+    load_model, TASK_SUITES, compute_per_head_scores, _active_heads,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Core measurement
+# Metric 1 — ATTRIBUTION (identical to the original *_dead_heads figures)
 # ─────────────────────────────────────────────────────────────────────────────
-def dead_heads_per_layer(
+def dead_heads_attribution(
+    model,
+    tokens: torch.Tensor,
+    rel_threshold: float = 0.15,
+    target_pos: int = -1,
+):
+    """
+    Old attribution metric.  A head's activity is the gradient x activation
+    attribution of its per-head output z toward the target logit:
+
+        score(l,h) = mean_{seq,d_head} | z_{l,h} * d(logit)/d z_{l,h} |
+
+    and it is DEAD when score(l,h) < rel_threshold x max_h' score(l,h').
+
+    This delegates to `compute_per_head_scores` and `_active_heads` from the
+    main pipeline, so the criterion is byte-for-byte the same as the GPT-2 /
+    Pythia figures.  Needs a backward pass; on a CPU-offloaded 70B this is
+    slow (minutes per task) but works now that the anchor-dtype bug is fixed.
+
+    Returns (dead_counts [n_layers], head_scores [n_layers, n_heads]).
+    """
+    n_layers, n_heads = model.cfg.n_layers, model.cfg.n_heads
+    head_scores, _ = compute_per_head_scores(model, tokens, target_pos=target_pos)
+
+    dead = np.zeros(n_layers, dtype=int)
+    for l in range(n_layers):
+        active = _active_heads(head_scores, l, rel_threshold)  # list[bool]
+        dead[l] = n_heads - int(sum(active))
+    return dead, head_scores
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Metric 2 — MAGNITUDE (gradient-free fallback; forward pass only)
+# ─────────────────────────────────────────────────────────────────────────────
+def dead_heads_magnitude(
     model,
     tokens: torch.Tensor,
     rel_threshold: float = 0.15,
     position: str = "last",
 ):
     """
-    Return (dead_counts, per_head_norm):
-      dead_counts    : int ndarray [n_layers]  — # heads below threshold per layer
-      per_head_norm  : float ndarray [n_layers, n_heads] — the raw activity signal
-
-    A head is dead when its attention-output L2 norm is below `rel_threshold`
-    times the strongest head in the same layer.
+    Gradient-free alternative.  Head activity is the per-head attention-output
+    L2 norm ||z_{l,h}||; dead when below rel_threshold x layer-max.  Only needs
+    a forward pass, so it is robust on very large / offloaded models where a
+    backward pass is impractical.
 
     position : "last"  → evaluate at the final (prediction) token
                "mean"  → average the per-head norm over all sequence positions
+
+    Returns (dead_counts [n_layers], per_head_norm [n_layers, n_heads]).
     """
     n_layers = model.cfg.n_layers
     n_heads = model.cfg.n_heads
@@ -166,9 +209,16 @@ def main():
     ap.add_argument("--out", default="graphs_deadheads",
                     help="Output directory.")
     ap.add_argument("--threshold", type=float, default=0.15,
-                    help="Head dead if norm < threshold x layer-max (default 0.15).")
+                    help="Head dead if score < threshold x layer-max (default 0.15).")
+    ap.add_argument("--metric", default="attribution",
+                    choices=["attribution", "magnitude"],
+                    help="attribution: gradient x activation, identical to the "
+                         "original GPT-2/Pythia figures (needs a backward pass; "
+                         "slow on offloaded 70B).  magnitude: gradient-free "
+                         "per-head ||z|| (forward pass only).")
     ap.add_argument("--position", default="last", choices=["last", "mean"],
-                    help="Evaluate at final token (default) or mean over sequence.")
+                    help="magnitude metric only: final token (default) or mean "
+                         "over sequence.")
     args = ap.parse_args()
 
     if args.tasks:
@@ -187,21 +237,40 @@ def main():
     print("=" * 60)
     model = load_model(args.model, device=args.device, hf_token=args.hf_token)
     n_layers, n_heads = model.cfg.n_layers, model.cfg.n_heads
+    metric_str = ("gradient x activation attribution" if args.metric == "attribution"
+                  else f"per-head z-norm ({args.position})")
     print(f"  n_layers={n_layers}  n_heads={n_heads}  "
-          f"metric=||z_head|| ({args.position})  threshold={args.threshold}\n")
+          f"metric={metric_str}  threshold={args.threshold}\n")
+    if args.metric == "attribution":
+        print("  NOTE: attribution needs a backward pass; on an offloaded 70B "
+              "this can take minutes per task.\n")
 
     dump = {"model": args.model, "suite": args.suite,
             "n_layers": n_layers, "n_heads": n_heads,
-            "metric": f"per-head z-norm ({args.position})",
-            "threshold": args.threshold, "tasks": []}
+            "metric": metric_str, "threshold": args.threshold, "tasks": []}
 
+    all_zero_warned = False
     for i, (text, label) in enumerate(zip(tasks, labels)):
         print(f"  [{i+1}/{len(tasks)}] {label!r}: {textwrap.shorten(text, 50)}")
         tokens = model.to_tokens(text)
         if tokens.shape[-1] > 512:
             tokens = tokens[:, -512:]
-        dead, norms = dead_heads_per_layer(
-            model, tokens, rel_threshold=args.threshold, position=args.position)
+
+        if args.metric == "attribution":
+            dead, raw = dead_heads_attribution(
+                model, tokens, rel_threshold=args.threshold)
+            # Guard: if attribution failed (all scores zero) every head reads
+            # as dead.  Warn once and point at the magnitude fallback.
+            if float(np.max(raw)) <= 0.0 and not all_zero_warned:
+                print("       WARNING: all attribution scores are zero — the "
+                      "backward pass did not produce gradients on this model. "
+                      "Re-run with --metric magnitude for a forward-only measure.")
+                all_zero_warned = True
+        else:
+            dead, raw = dead_heads_magnitude(
+                model, tokens, rel_threshold=args.threshold,
+                position=args.position)
+
         total = int(dead.sum())
         print(f"       total dead = {total}/{n_layers * n_heads}  "
               f"({100 * total / (n_layers * n_heads):.1f}%)")
@@ -215,7 +284,7 @@ def main():
             "index": i, "label": label, "text": text,
             "dead_per_layer": dead.tolist(),
             "total_dead": total,
-            "per_head_norm": norms.tolist(),   # raw signal, preserved
+            "per_head_score": raw.tolist(),   # raw signal, preserved
         })
 
     json_path = out_dir / f"{safe_name}_dead_heads.json"
