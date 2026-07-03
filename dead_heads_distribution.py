@@ -184,9 +184,11 @@ def dead_heads_contribution(
     attribution far more closely than ||z|| while needing only a forward pass —
     which is essential on a CPU-offloaded 70B where a backward pass cannot run.
 
-    Implemented with our own pre-hooks on each layer's o_proj so W_O is read while
-    it is on-device during that module's forward (accelerate offloads it right
-    after).  Requires the `_HFHookedModel` wrapper (large HF models).
+    Implemented by wrapping each o_proj's real forward (`_old_forward` under
+    accelerate, else `forward`), which is the only point where W_O is materialised
+    on-device for a CPU-offloaded layer — a standard forward_pre_hook fires too
+    early (before accelerate loads the weight) and sees a meta tensor.  Requires
+    the `_HFHookedModel` wrapper (large HF models).
 
     Returns (dead_counts [n_layers], per_head_contrib [n_layers, n_heads]).
     """
@@ -203,34 +205,42 @@ def dead_heads_contribution(
     layers = model._layers()
 
     store: dict = {}
-    handles: list = []
+    patched: list = []   # (module, attr_name, original_fn)
+
+    def _make_wrapper(orig_fn, module, ll):
+        def _wrapper(*a, **kw):
+            # Runs inside accelerate's execution window → module.weight is live.
+            try:
+                x = a[0] if a else next(iter(kw.values()))
+                W = module.weight
+                if x.dim() == 3 and W.device.type != "meta":
+                    b, s, _ = x.shape
+                    xh = x.reshape(b, s, n_heads, d_head)[0].float()     # [s, nh, dh]
+                    Wr = W.reshape(W.shape[0], n_heads, d_head).float()  # [hidden, nh, dh]
+                    contrib = torch.einsum("shd,ohd->sho", xh, Wr)       # [s, nh, hidden]
+                    store[ll] = contrib.norm(dim=-1).detach().cpu()      # [s, nh]
+            except Exception:
+                pass   # never let measurement break the forward
+            return orig_fn(*a, **kw)
+        return _wrapper
 
     for l in range(n_layers):
         attn = model._get_attn(layers[l])
         o_proj = getattr(attn, "o_proj", None)
         if o_proj is None:
             continue
-
-        def _pre(mod, args, ll=l):
-            x = args[0] if isinstance(args, tuple) else args   # [b, s, n_heads*d_head]
-            if x.dim() != 3:
-                return None
-            b, s, _ = x.shape
-            W = mod.weight                                      # [hidden, n_heads*d_head]
-            xh = x.reshape(b, s, n_heads, d_head)[0].float()    # [s, nh, dh]
-            Wr = W.reshape(W.shape[0], n_heads, d_head).float() # [hidden, nh, dh]
-            # per-head residual-stream write: [s, nh, hidden]; then its norm
-            contrib = torch.einsum("shd,ohd->sho", xh, Wr)      # [s, nh, hidden]
-            store[ll] = contrib.norm(dim=-1).cpu()              # [s, nh]
-            return None                                         # do not modify input
-        handles.append(o_proj.register_forward_pre_hook(_pre))
+        # Wrap the point where the (possibly offloaded) weight is live.
+        attr = "_old_forward" if hasattr(o_proj, "_old_forward") else "forward"
+        orig = getattr(o_proj, attr)
+        setattr(o_proj, attr, _make_wrapper(orig, o_proj, l))
+        patched.append((o_proj, attr, orig))
 
     try:
         with torch.no_grad():
             model.run_with_hooks(tokens, fwd_hooks=None, return_type="logits")
     finally:
-        for h in handles:
-            h.remove()
+        for o_proj, attr, orig in patched:
+            setattr(o_proj, attr, orig)
 
     dead = np.zeros(n_layers, dtype=int)
     per_head = np.zeros((n_layers, n_heads), dtype=np.float32)
