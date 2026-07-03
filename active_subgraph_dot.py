@@ -661,7 +661,11 @@ def compute_per_head_scores(
     fwd_hooks = []
 
     def _anchor(act, hook):
-        return act.detach().float().requires_grad_(True)
+        # Keep the anchor in the model's native dtype.  Casting to float32 here
+        # injects a float32 tensor into bfloat16 matmuls on bf16 models (e.g.
+        # Llama-70B loaded in bfloat16), raising "expected mat1 and mat2 to have
+        # the same dtype".  Gradients are cast to float at scoring time below.
+        return act.detach().requires_grad_(True)
     fwd_hooks.append(("blocks.0.hook_resid_pre", _anchor))
 
     for l in range(n_layers):
