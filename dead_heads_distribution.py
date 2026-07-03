@@ -12,17 +12,25 @@ TWO METRICS
 A head (l,h) is DEAD iff  activity(l,h) < tau * max_h' activity(l,h').  The
 activity signal is selectable:
 
-  --metric attribution   (DEFAULT)  gradient x activation attribution of the
-      per-head output toward the target logit.  This is *identical* to the
-      criterion behind the original GPT-2 / Pythia *_dead_heads figures (it
-      delegates to `compute_per_head_scores` + `_active_heads`), so numbers are
-      directly comparable.  Needs a backward pass; slow on an offloaded 70B but
-      works now that the anchor-dtype bug is fixed.
+  --metric attribution   gradient x activation attribution of the per-head output
+      toward the target logit.  *Identical* to the criterion behind the original
+      GPT-2 / Pythia *_dead_heads figures (delegates to `compute_per_head_scores`
+      + `_active_heads`).  Needs a BACKWARD pass, so it works only on models that
+      fit fully on GPU.  It CANNOT run on a CPU-offloaded 70B: accelerate offloads
+      each module's weights immediately after its forward, so by backward time
+      the weights are gone and no activation gradients flow — every score comes
+      back zero and every head reads as "dead".  The script aborts in that case.
 
-  --metric magnitude     gradient-free per-head attention-output norm ||z_{l,h}||
-      (forward pass only).  Robust on very large / CPU-offloaded models where a
-      backward pass is impractical.  Not directly comparable to attribution
-      numbers (it tends to read a higher dead fraction, especially under GQA).
+  --metric contribution  (DEFAULT)  forward-only per-head write norm
+      ||z_{l,h} @ W_O_h|| — the size of the head's actual contribution to the
+      residual stream.  Attribution-like (it weights the value vector by the
+      output projection, discounting GQA-redundant heads), but needs only a
+      forward pass, so it works on the offloaded 70B.  Recommended for large
+      models.
+
+  --metric magnitude     crudest forward-only measure: raw per-head value norm
+      ||z_{l,h}||.  Ignores the output projection, so it over-counts dead heads
+      under grouped-query attention.
 
 z is captured at `blocks.l.attn.hook_z` (shape [batch, seq, n_heads, d_head]);
 both metrics work on TransformerLens models (small) and the native-hook
@@ -156,6 +164,91 @@ def dead_heads_magnitude(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Metric 3 — CONTRIBUTION (forward-only, attribution-like; recommended for 70B)
+# ─────────────────────────────────────────────────────────────────────────────
+def dead_heads_contribution(
+    model,
+    tokens: torch.Tensor,
+    rel_threshold: float = 0.15,
+    position: str = "last",
+):
+    """
+    Forward-only head activity = the L2 norm of the head's actual write into the
+    residual stream, ||z_{l,h} @ W_O_h||, where W_O_h is head h's slice of the
+    attention output projection.  Dead when below rel_threshold x layer-max.
+
+    Why this and not raw ||z||: a head can have a large value vector z but a small
+    output-projection footprint (common under grouped-query attention, where many
+    query heads in a group are near-redundant).  Weighting by W_O measures the
+    head's true contribution to the stream, so it tracks gradient x activation
+    attribution far more closely than ||z|| while needing only a forward pass —
+    which is essential on a CPU-offloaded 70B where a backward pass cannot run.
+
+    Implemented with our own pre-hooks on each layer's o_proj so W_O is read while
+    it is on-device during that module's forward (accelerate offloads it right
+    after).  Requires the `_HFHookedModel` wrapper (large HF models).
+
+    Returns (dead_counts [n_layers], per_head_contrib [n_layers, n_heads]).
+    """
+    hf = getattr(model, "_model", None)
+    if hf is None or not hasattr(model, "_layers"):
+        raise RuntimeError(
+            "The 'contribution' metric needs the _HFHookedModel wrapper "
+            "(large HF models). For small TransformerLens models use "
+            "--metric attribution.")
+
+    n_layers = model.cfg.n_layers
+    n_heads = model.cfg.n_heads
+    d_head = model.cfg.d_head
+    layers = model._layers()
+
+    store: dict = {}
+    handles: list = []
+
+    for l in range(n_layers):
+        attn = model._get_attn(layers[l])
+        o_proj = getattr(attn, "o_proj", None)
+        if o_proj is None:
+            continue
+
+        def _pre(mod, args, ll=l):
+            x = args[0] if isinstance(args, tuple) else args   # [b, s, n_heads*d_head]
+            if x.dim() != 3:
+                return None
+            b, s, _ = x.shape
+            W = mod.weight                                      # [hidden, n_heads*d_head]
+            xh = x.reshape(b, s, n_heads, d_head)[0].float()    # [s, nh, dh]
+            Wr = W.reshape(W.shape[0], n_heads, d_head).float() # [hidden, nh, dh]
+            # per-head residual-stream write: [s, nh, hidden]; then its norm
+            contrib = torch.einsum("shd,ohd->sho", xh, Wr)      # [s, nh, hidden]
+            store[ll] = contrib.norm(dim=-1).cpu()              # [s, nh]
+            return None                                         # do not modify input
+        handles.append(o_proj.register_forward_pre_hook(_pre))
+
+    try:
+        with torch.no_grad():
+            model.run_with_hooks(tokens, fwd_hooks=None, return_type="logits")
+    finally:
+        for h in handles:
+            h.remove()
+
+    dead = np.zeros(n_layers, dtype=int)
+    per_head = np.zeros((n_layers, n_heads), dtype=np.float32)
+    for l in range(n_layers):
+        norms = store.get(l)
+        if norms is None:
+            dead[l] = n_heads
+            continue
+        v = (norms.mean(0) if position == "mean" else norms[-1]).numpy()
+        m = min(len(v), n_heads)
+        per_head[l, :m] = v[:m]
+        mx = float(v.max()) if v.size else 0.0
+        dead[l] = int((v < rel_threshold * mx).sum()) if mx > 0 else n_heads
+
+    return dead, per_head
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Plot (matches the *_dead_heads.png style)
 # ─────────────────────────────────────────────────────────────────────────────
 def plot_dead_heads(dead, n_heads, model_name, label, text, out_png, rel_threshold):
@@ -210,15 +303,19 @@ def main():
                     help="Output directory.")
     ap.add_argument("--threshold", type=float, default=0.15,
                     help="Head dead if score < threshold x layer-max (default 0.15).")
-    ap.add_argument("--metric", default="attribution",
-                    choices=["attribution", "magnitude"],
+    ap.add_argument("--metric", default="contribution",
+                    choices=["attribution", "contribution", "magnitude"],
                     help="attribution: gradient x activation, identical to the "
-                         "original GPT-2/Pythia figures (needs a backward pass; "
-                         "slow on offloaded 70B).  magnitude: gradient-free "
-                         "per-head ||z|| (forward pass only).")
+                         "original GPT-2/Pythia figures — needs a backward pass, "
+                         "so it CANNOT run on a CPU-offloaded 70B (accelerate "
+                         "offloads weights after each forward). Use on models "
+                         "that fit fully on GPU.  contribution (DEFAULT): "
+                         "forward-only ||z_h.W_O_h||, attribution-like, works on "
+                         "the offloaded 70B, discounts GQA-redundant heads.  "
+                         "magnitude: crudest, forward-only ||z_h||.")
     ap.add_argument("--position", default="last", choices=["last", "mean"],
-                    help="magnitude metric only: final token (default) or mean "
-                         "over sequence.")
+                    help="contribution/magnitude metrics: final token (default) "
+                         "or mean over sequence.")
     args = ap.parse_args()
 
     if args.tasks:
@@ -237,19 +334,23 @@ def main():
     print("=" * 60)
     model = load_model(args.model, device=args.device, hf_token=args.hf_token)
     n_layers, n_heads = model.cfg.n_layers, model.cfg.n_heads
-    metric_str = ("gradient x activation attribution" if args.metric == "attribution"
-                  else f"per-head z-norm ({args.position})")
+    metric_str = {
+        "attribution":  "gradient x activation attribution",
+        "contribution": f"per-head ||z.W_O|| contribution ({args.position})",
+        "magnitude":    f"per-head z-norm ({args.position})",
+    }[args.metric]
     print(f"  n_layers={n_layers}  n_heads={n_heads}  "
           f"metric={metric_str}  threshold={args.threshold}\n")
     if args.metric == "attribution":
-        print("  NOTE: attribution needs a backward pass; on an offloaded 70B "
-              "this can take minutes per task.\n")
+        print("  NOTE: attribution needs a backward pass. It works on models that\n"
+              "  fit fully on GPU, but CANNOT run on a CPU-offloaded 70B — the run\n"
+              "  will abort if scores come back all-zero. Use --metric contribution\n"
+              "  for the 70B.\n")
 
     dump = {"model": args.model, "suite": args.suite,
             "n_layers": n_layers, "n_heads": n_heads,
             "metric": metric_str, "threshold": args.threshold, "tasks": []}
 
-    all_zero_warned = False
     for i, (text, label) in enumerate(zip(tasks, labels)):
         print(f"  [{i+1}/{len(tasks)}] {label!r}: {textwrap.shorten(text, 50)}")
         tokens = model.to_tokens(text)
@@ -259,13 +360,20 @@ def main():
         if args.metric == "attribution":
             dead, raw = dead_heads_attribution(
                 model, tokens, rel_threshold=args.threshold)
-            # Guard: if attribution failed (all scores zero) every head reads
-            # as dead.  Warn once and point at the magnitude fallback.
-            if float(np.max(raw)) <= 0.0 and not all_zero_warned:
-                print("       WARNING: all attribution scores are zero — the "
-                      "backward pass did not produce gradients on this model. "
-                      "Re-run with --metric magnitude for a forward-only measure.")
-                all_zero_warned = True
+            # Hard-stop instead of emitting all-dead garbage: all scores zero
+            # means the backward pass produced no gradients (e.g. CPU-offloaded
+            # model).  Abort with an actionable message.
+            if float(np.max(raw)) <= 0.0:
+                raise SystemExit(
+                    "\nERROR: attribution scores are all zero — the backward pass "
+                    "produced no gradients.\nThis happens on CPU-offloaded models "
+                    "(the 70B): accelerate offloads each module's weights right "
+                    "after its forward,\nso there are no weights left for backward. "
+                    "Re-run with:  --metric contribution\n")
+        elif args.metric == "contribution":
+            dead, raw = dead_heads_contribution(
+                model, tokens, rel_threshold=args.threshold,
+                position=args.position)
         else:
             dead, raw = dead_heads_magnitude(
                 model, tokens, rel_threshold=args.threshold,
