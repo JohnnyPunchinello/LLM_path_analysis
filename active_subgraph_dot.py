@@ -2202,6 +2202,123 @@ TASK_SUITES: dict = {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# (D, W) FACTORIAL TASK GENERATOR
+# ─────────────────────────────────────────────────────────────────────────────
+# Purpose: test the core hypothesis that *serial* task complexity (dependency
+# depth D) recruits network DEPTH (layers), while *parallel* task complexity
+# (independent width W) recruits network WIDTH (attention heads per layer).
+#
+# Every generated task encodes its coordinates in the label as "D{d}W{w}" so the
+# downstream analysis can regress recruited-depth and recruited-width on (D, W)
+# and test for a clean double dissociation (off-diagonal terms ~ 0).
+#
+# The three axes:
+#   serial_depth   : pure serial   (W=1, D=1..6)  pointer-chase, k follows.
+#                    Prompt LENGTH is constant across D — only the step count
+#                    changes — so recruitment cannot be tracking token count.
+#                    This is the cleanest possible depth manipulation.
+#   parallel_width : pure parallel (D=1, W=1..6)  find the unique match among W
+#                    independent bindings.  (Length grows with W; use the
+#                    *_lenmatched variant to control for that.)
+#   dw_grid        : crossed (D x W) — W parallel depth-D pointer chains,
+#                    answer = the largest endpoint.  Tests additivity/interaction.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Fixed 5-cycle permutation 0->2->1->4->3->0 (a single cycle, so k follows from
+# any start are well defined and non-trivial).  Constant across all depth rungs.
+_PERM = {0: 2, 1: 4, 2: 1, 3: 0, 4: 3}
+_PERM_RULES = ("Rules: 0 goes to 2. 1 goes to 4. 2 goes to 1. "
+               "3 goes to 0. 4 goes to 3. ")
+
+# Independent city -> country bindings for the parallel (find-match) task.
+_BINDINGS = [
+    ("Berlin", "Germany"), ("Cairo", "Egypt"), ("Lima", "Peru"),
+    ("Oslo", "Norway"), ("Tokyo", "Japan"), ("Quito", "Ecuador"),
+    ("Ottawa", "Canada"),
+]
+
+# Neutral filler for length-matching (adds tokens but no width demand).
+_FILLER = [
+    "The sky is blue.", "Water is wet.", "Grass is green.",
+    "Ice is cold.", "Fire is hot.", "Snow is white.", "Coal is black.",
+]
+
+
+def _follow(start: int, k: int) -> int:
+    s = start
+    for _ in range(k):
+        s = _PERM[s]
+    return s
+
+
+def _gen_serial_depth(depths=range(1, 7), start=0):
+    """Pure serial: W=1, vary D. Constant-length pointer chase."""
+    tasks, labels, answers = [], [], []
+    for k in depths:
+        tasks.append(_PERM_RULES + f"Start at {start}. Take {k} steps. You end at")
+        labels.append(f"D{k}W1")
+        answers.append(str(_follow(start, k)))
+    return tasks, labels, answers
+
+
+def _gen_parallel_width(widths=range(1, 7), lenmatched=False):
+    """Pure parallel: D=1, vary W. Find the city in a unique target country."""
+    tasks, labels, answers = [], [], []
+    max_w = max(widths)
+    for m in widths:
+        pairs = _BINDINGS[:m]
+        tgt_city, tgt_country = pairs[m // 2]           # unique target, mid-list
+        sents = [f"{c} is in {k}." for c, k in pairs]
+        if lenmatched:
+            sents += _FILLER[: (max_w - m)]             # pad to constant length
+        prompt = " ".join(sents) + f" The city in {tgt_country} is"
+        tasks.append(prompt)
+        labels.append(f"D1W{m}" + ("_LM" if lenmatched else ""))
+        answers.append(tgt_city)
+    return tasks, labels, answers
+
+
+def _gen_dw_grid(depths=(1, 3, 5), widths=(1, 3, 5)):
+    """Crossed (D x W): W parallel depth-D pointer chains; answer = max endpoint."""
+    tasks, labels, answers = [], [], []
+    for k in depths:
+        for m in widths:
+            starts = list(range(m))                     # W distinct chains
+            endpoints = [_follow(s, k) for s in starts]
+            starts_str = ", ".join(str(s) for s in starts)
+            tasks.append(
+                _PERM_RULES
+                + f"Take {k} steps from each of these starts: {starts_str}. "
+                + "The largest value you reach is")
+            labels.append(f"D{k}W{m}")
+            answers.append(str(max(endpoints)))
+    return tasks, labels, answers
+
+
+def _register_factorial_suites():
+    """Build the (D, W) suites and add them to TASK_SUITES (labels carry D,W;
+    the gold answers are stashed under the '_answers' key for accuracy scoring)."""
+    sd_t, sd_l, sd_a = _gen_serial_depth()
+    pw_t, pw_l, pw_a = _gen_parallel_width(lenmatched=False)
+    pl_t, pl_l, pl_a = _gen_parallel_width(lenmatched=True)
+    gr_t, gr_l, gr_a = _gen_dw_grid()
+
+    # A combined sweep: both pure axes back to back, for one-shot runs.
+    fac_t = sd_t + pw_t
+    fac_l = sd_l + pw_l
+    fac_a = sd_a + pw_a
+
+    TASK_SUITES["serial_depth"]     = {"tasks": sd_t, "labels": sd_l, "_answers": sd_a}
+    TASK_SUITES["parallel_width"]   = {"tasks": pw_t, "labels": pw_l, "_answers": pw_a}
+    TASK_SUITES["parallel_width_lm"] = {"tasks": pl_t, "labels": pl_l, "_answers": pl_a}
+    TASK_SUITES["dw_grid"]          = {"tasks": gr_t, "labels": gr_l, "_answers": gr_a}
+    TASK_SUITES["dw_factorial"]     = {"tasks": fac_t, "labels": fac_l, "_answers": fac_a}
+
+
+_register_factorial_suites()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
