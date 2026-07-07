@@ -2319,6 +2319,101 @@ _register_factorial_suites()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CONSISTENCY SUITE — many paraphrased instances per category
+# ─────────────────────────────────────────────────────────────────────────────
+# For the distribution study: "do prompts of the same category invoke the same
+# heads?"  Each category holds its COMPUTATION fixed (1-hop / 2-hop / arithmetic
+# / serial-3 / parallel-4) but VARIES the surface (entities, wording, order) so
+# that any shared active-head core reflects the computation, not the template.
+#
+# Labels are "{category}#{i:02d}" so the analyzer can group by category
+# (label.split('#')[0]).  Gold answers stashed under '_answers'.
+# ─────────────────────────────────────────────────────────────────────────────
+import random as _random
+
+_NAMES = ["Alice", "Bob", "Carol", "David", "Emma", "Frank", "Grace", "Henry",
+          "Iris", "Jack", "Kate", "Liam", "Mia", "Noah", "Olivia", "Paul"]
+_CAPITALS = [("France", "Paris"), ("Japan", "Tokyo"), ("Italy", "Rome"),
+             ("Spain", "Madrid"), ("Egypt", "Cairo"), ("Canada", "Ottawa"),
+             ("Norway", "Oslo"), ("Peru", "Lima"), ("Germany", "Berlin"),
+             ("Greece", "Athens"), ("Cuba", "Havana"), ("Chile", "Santiago"),
+             ("Poland", "Warsaw"), ("Kenya", "Nairobi"), ("Portugal", "Lisbon")]
+_CITY_COUNTRY = [("Berlin", "Germany"), ("Cairo", "Egypt"), ("Lima", "Peru"),
+                 ("Oslo", "Norway"), ("Tokyo", "Japan"), ("Quito", "Ecuador"),
+                 ("Ottawa", "Canada"), ("Madrid", "Spain"), ("Rome", "Italy"),
+                 ("Athens", "Greece")]
+
+
+def _rand_5cycle(rng):
+    """Random single 5-cycle permutation on {0..4} → dict."""
+    order = [0, 1, 2, 3, 4]
+    rng.shuffle(order)
+    return {order[i]: order[(i + 1) % 5] for i in range(5)}, order
+
+
+def _gen_consistency(n_per=30, seed=0):
+    rng = _random.Random(seed)
+    tasks, labels, answers = [], [], []
+
+    def add(cat, i, prompt, ans):
+        tasks.append(prompt); labels.append(f"{cat}#{i:02d}"); answers.append(str(ans))
+
+    for i in range(n_per):
+        # --- fact1hop: single-hop factual recall (varied country + phrasing) ---
+        country, cap = rng.choice(_CAPITALS)
+        tmpl = rng.choice([f"The capital of {country} is",
+                           f"The capital city of {country} is",
+                           f"{country}'s capital is"])
+        add("fact1hop", i, tmpl, cap)
+
+        # --- reason2hop: grandchild (varied names + phrasing) ---
+        A, B, C = rng.sample(_NAMES, 3)
+        rel = rng.choice(["mother", "father", "parent"])
+        tmpl = rng.choice([
+            f"{A} is the {rel} of {B}. {B} is the {rel} of {C}. {A}'s grandchild is",
+            f"{A} is {B}'s {rel}. {B} is {C}'s {rel}. The grandchild of {A} is",
+        ])
+        add("reason2hop", i, tmpl, C)
+
+        # --- arith: two-digit addition (varied numbers + phrasing) ---
+        a, b = rng.randint(10, 49), rng.randint(10, 49)
+        tmpl = rng.choice([f"{a} plus {b} equals", f"{a} + {b} =",
+                           f"The sum of {a} and {b} is"])
+        add("arith", i, tmpl, a + b)
+
+        # --- serial3: fixed-depth (D=3) pointer chase, varied rules + start ---
+        perm, order = _rand_5cycle(rng)
+        start = rng.randint(0, 4)
+        rules = "Rules: " + " ".join(f"{k} goes to {v}." for k, v in perm.items())
+        add("serial3", i, f"{rules} Start at {start}. Take 3 steps. You end at",
+            _follow_perm(start, 3, perm))
+
+        # --- parallel4: fixed-width (W=4) find-match, varied bindings + order ---
+        pairs = rng.sample(_CITY_COUNTRY, 4)
+        tgt_city, tgt_country = rng.choice(pairs)
+        sents = [f"{c} is in {k}." for c, k in pairs]
+        rng.shuffle(sents)
+        add("parallel4", i, " ".join(sents) + f" The city in {tgt_country} is", tgt_city)
+
+    return tasks, labels, answers
+
+
+def _follow_perm(start, k, perm):
+    s = start
+    for _ in range(k):
+        s = perm[s]
+    return s
+
+
+def _register_consistency_suite():
+    t, l, a = _gen_consistency(n_per=30, seed=0)
+    TASK_SUITES["consistency"] = {"tasks": t, "labels": l, "_answers": a}
+
+
+_register_consistency_suite()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 
