@@ -12,51 +12,54 @@
 \usepackage{natbib}
 \usepackage[hidelinks]{hyperref}
 
-\title{\textbf{Complexity-Graded Head Recruitment:\\
-Dead Attention Heads as a Behavioural Probe of Task Demand\\
-in Transformer Language Models}}
+\title{\textbf{Depth for Serial, Width for Parallel:\\
+How Transformers Allocate Layers and Attention Heads\\
+to a Task's Computational Structure}}
 \author{(author list omitted in draft)}
 \date{\today}
 
 \newcommand{\dl}{d(\ell)}
+\newcommand{\Dh}{\hat{D}}
+\newcommand{\Wh}{\hat{W}}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-A transformer attention head is \emph{dead} for a given prediction when its
-attribution score falls below a fixed fraction of the strongest head in its
-layer: the head sits on the residual stream but routes essentially no
-information for that input. We treat the per-layer count of dead heads,
-$\dl$, as a first-class observable and ask how it deforms as a task becomes
-more demanding. Measuring six models (GPT-2 medium/large/xl; Pythia
-70M/160M/410M) across two controlled task ladders---an eight-step
-complexity gradient and a clean six-step serial-reasoning ladder
-(1-hop$\,\ldots\,$6-hop chains with surface form held fixed)---we find one
-robust phenomenon: \textbf{as task demand rises, models monotonically
-recruit dead heads into active computation.} The recruitment is large and
-universal at the first reasoning step (the 1-hop$\to$2-hop transition
-activates $20$--$55\%$ of all previously dead heads in every model), and the
-size of the recruitable reserve scales with model capacity (GPT-2~xl idles
-$19\%$ of its heads on the easiest chain and draws down $11$ percentage
-points of that across the ladder, versus $8\%/3.7$\,pp for GPT-2~medium and
-$6\%/2.1$\,pp for Pythia-70M). The recruitment is, moreover, \emph{spatially
-directed}: as reasoning depth rises the dead zone's front edge retreats
-deeper and early layers are drawn into computation---the network's
-\emph{active frontier} extends. The two deformations are coupled and both
-strengthen with scale (Llama-3-8B reasoning subset: $r(\text{hops},
-\text{total dead}){=}{-}0.89$ \emph{and} $r(\text{hops}, \text{frontier
-depth}){=}{+}0.96$; pooled frontier correlation $r{=}{+}0.70$ over the three
-largest GPT-2/Pythia models). We thus describe a two-axis demand--geometry
-law: rising demand both \emph{deflates} the dead-head landscape (vertical
-recruitment) and \emph{advances} its active frontier (horizontal extension),
-at an estimable cost of $\sim$1--2 layers per reasoning hop in the cleanest
-model. A controlled $(D,W)$ factorial that varies serial depth and parallel
-width independently confirms the width half of the mechanism on Llama-3-70B
-(parallel width recruits heads, $r{=}{+}0.81$; serial depth does not), while
-showing the depth half needs smaller, lower-reserve models to resolve. We
-report the complete per-model, per-task dataset (84 measurements) and lay out
-the experiments needed to turn these observations into a publishable result.
+Expressivity theory tells us what a transformer \emph{can} compute: fixed
+depth bounds the number of \emph{sequential} steps available, while heads
+supply \emph{parallel} capacity. We ask the complementary empirical question:
+given a trained model and a task, how much of each resource does it actually
+\emph{allocate}? We characterise every task by two structural coordinates of
+its dependency graph---serial depth $D$ (the critical path) and parallel
+width $W$ (the largest set of mutually independent intermediate values)---and
+every prediction by two allocation measures read off the network's
+active-head landscape: recruited width $\Wh$ (active heads per layer) and
+recruited depth $\Dh$ (the active frontier). Our organising hypothesis is a
+\emph{resource-matching law}: $\Dh$ should track $D$ and $\Wh$ should track
+$W$, with negligible cross-terms, at exchange rates $c$ (layers per serial
+step) and $\gamma$ (heads per parallel item) that in turn predict a capability
+ceiling $D_{\max}\approx L_{\text{eff}}/c$. We test this with a factorial
+suite that varies $D$ and $W$ independently under a length control.
+On Llama-3-70B the width half holds cleanly---parallel width recruits heads
+($r{=}{+}0.81$ length-matched; grid fit $\Wh \approx 32.3-0.14\,D+0.25\,W$)
+while serial depth recruits none---and the length control proves necessary,
+since the uncontrolled ladder trends the wrong way. The depth half is null on
+this model, which the framework explains as the expected \emph{sub-ceiling}
+regime: a 70B idles ${\sim}50\%$ of its heads, so a six-step task never
+approaches its serial budget. In lower-reserve models the depth axis does
+appear (Llama-3-8B: $r(\text{hops},\text{frontier}){=}{+}0.96$; pooled
+$r{=}{+}0.70$ across the largest GPT-2/Pythia models), and recruitment
+overall scales with model capacity. We then show how architecture sets the
+two budgets---depth $L$, heads $H$, KV groups $n_{kv}$ under grouped-query
+attention, experts under mixture-of-experts, and the aspect ratio $L/H$---and
+derive falsifiable cross-architecture predictions. Finally we delimit what
+active-node geometry does and does not reveal about circuits: it constrains a
+circuit's support, width and depth-extent, but not its wiring; combined with a
+known task graph it identifies the \emph{embedding} of that graph into the
+layer$\times$head lattice, which is the sense in which task structure can be
+read from activation structure. Complete data (84 measurements) and an
+experimental roadmap are included.
 \end{abstract}
 
 % ======================================================================
@@ -74,39 +77,64 @@ What is missing is a \emph{graded, per-task} account: not ``which heads are
 removable in general,'' but \textbf{how the set of working heads grows as a
 task becomes harder, and how that growth is bounded by model capacity.}
 
-We make the dead-head landscape $\dl$---the number of attention heads at
-layer $\ell$ whose attribution falls below an activity threshold---a
-first-class measurement, and track how it changes along a controlled
-complexity axis. Our central finding is a single, directional law:
+A parallel theoretical literature makes the resource structure precise.
+Fixed-depth log-precision transformers occupy a shallow parallel class with a
+\emph{bounded number of sequential steps} \citep{merrill2023parallelism};
+chain-of-thought tokens are how a model buys serial steps it cannot fit in
+depth \citep{merrill2024cot,li2024chain,feng2023towards}; and the dichotomy is
+explicit in expressivity results showing that parallel-style problems are
+solvable by one wide layer while $k$-hop and pointer-chasing problems
+\emph{provably require depth} \citep{sanford2023representational,%
+sanford2024transformers}. These are statements about what an architecture
+\emph{can} compute in the worst case. They leave open the empirical question
+this paper addresses:
 
 \begin{quote}
-\emph{The dead-head landscape deflates monotonically as task demand rises:
-the model recruits dormant heads to pay for additional computation. The
-recruitable reserve, and how much of it is drawn down, scale with model
-size.}
+\emph{Given a \textbf{trained} model and a specific task, how much serial
+(depth) and parallel (head) resource does it actually allocate---and does the
+allocation match the task's own serial and parallel structure?}
 \end{quote}
 
-We deliberately restrict this paper to the recruitment phenomenon and its
-scaling. We \emph{do not} make claims about output entropy or about a
-saturation/exit depth; those analyses are out of scope here and are left to
-companion work.
+We answer by giving both sides of that sentence a measurable definition. On
+the task side, every task carries two structural coordinates of its dependency
+graph: \emph{serial depth} $D$ (the critical path) and \emph{parallel width}
+$W$ (the largest set of mutually independent intermediate values). On the
+network side, every prediction induces an active-head set whose geometry gives
+\emph{recruited depth} $\Dh$ (how deep the active region reaches) and
+\emph{recruited width} $\Wh$ (how many heads per layer are engaged). The
+organising hypothesis is a \textbf{resource-matching law}: $\Dh$ tracks $D$,
+$\Wh$ tracks $W$, and the cross-terms vanish (Section~\ref{sec:framework}).
+
+Two consequences make this more than a restatement. First, the diagonal
+coefficients are \emph{exchange rates with units}---$c$ layers per serial
+step, $\gamma$ heads per parallel item---and $c$ predicts a capability ceiling
+$D_{\max}\approx L_{\text{eff}}/c$ from architecture alone. Second, the
+budgets are set by architectural choices ($L$, $H$, KV groups, experts, aspect
+ratio $L/H$), so the law generates falsifiable cross-architecture predictions
+(Section~\ref{sec:arch}).
 
 \paragraph{Contributions.}
 \begin{enumerate}[leftmargin=1.4em,itemsep=2pt]
-\item We define and measure the dead-head landscape $\dl$ as a graded
-function of task demand across six models and two task ladders
-(Section~\ref{sec:method}).
-\item We establish \emph{complexity-graded head recruitment} (the vertical
-axis): dead-head count falls monotonically with reasoning depth, with a
-universal step-change at the first reasoning hop (Section~\ref{sec:recruit}).
-\item We show the recruitable reserve \emph{dilates with model scale}
-(Section~\ref{sec:scale}).
-\item We establish the \emph{horizontal axis}: recruitment is spatially
-directed---the active frontier extends deeper as reasoning depth rises, at a
-measurable per-hop layer cost, giving a coupled two-axis demand--geometry law
-(Section~\ref{sec:frontier}).
-\item We release the complete 84-measurement dataset (Appendix~\ref{app:data})
-and a precise experimental roadmap (Section~\ref{sec:roadmap}).
+\item \textbf{A framework} that makes task complexity and network allocation
+commensurable: definitions of $(D,W)$ and $(\Dh,\Wh)$, the resource-matching
+law with its exchange rates, and the capacity ceiling it implies
+(Section~\ref{sec:framework}).
+\item \textbf{A controlled $(D,W)$ factorial} that varies serial depth and
+parallel width independently under a length control, establishing on
+Llama-3-70B that \emph{parallel width recruits heads and serial depth does
+not} (Section~\ref{sec:factorial}).
+\item \textbf{Supporting allocation results}: demand-graded recruitment, its
+dilation with model scale, and frontier extension with reasoning depth in
+lower-reserve models (Sections~\ref{sec:recruit}--\ref{sec:frontier}).
+\item \textbf{An architectural account} of how $L$, $H$, $n_{kv}$, experts and
+aspect ratio set the two budgets, with cross-architecture predictions
+(Section~\ref{sec:arch}).
+\item \textbf{A delimitation of what active-node geometry says about
+circuits}---support, width and depth-extent, but not wiring---and the sense in
+which task structure is recoverable from activation structure
+(Section~\ref{sec:discussion}).
+\item The complete 84-measurement dataset (Appendix~\ref{app:data}) and an
+experimental roadmap (Section~\ref{sec:roadmap}).
 \end{enumerate}
 
 % ======================================================================
@@ -148,13 +176,39 @@ A complementary line studies where multi-step computations occur.
 recall to specific layers and modules; \citet{yang2024large} show that
 multi-hop reasoning is performed latently across successive layer ranges, and
 \citet{biran2024hopping} show that later hops in a chain resolve in later
-layers and can fail when there is insufficient depth. On the theoretical
-side, \citet{merrill2023parallelism} characterise the limited parallel
-complexity class of fixed-depth transformers, and subsequent work
-\citep{feng2023towards,li2024chain} shows that chain-of-thought effectively
-adds serial computation steps. \emph{These works motivate using a
-serial-reasoning ladder as a clean complexity axis; we measure how the
-internal active-head set responds to it.}
+layers and can fail when there is insufficient depth; \citet{brinkmann2024mechanistic}
+and \citet{stolfo2023mechanistic} trace multi-step symbolic and arithmetic
+computation across layers. \emph{These works motivate using a serial-reasoning
+ladder as a clean complexity axis; we measure how the internal active-head set
+responds to it.}
+
+\paragraph{Expressivity: depth is the serial budget, heads the parallel one.}
+The resource structure we measure is established theoretically.
+\citet{merrill2023parallelism} show fixed-depth log-precision transformers lie
+in a shallow parallel class---unbounded fan-in but a \emph{bounded} number of
+sequential steps---and \citet{merrill2024cot} show that chain-of-thought
+decoding steps buy exactly the serial computation depth cannot supply
+(logarithmically many steps stay within $\mathsf{L}$, polynomially many
+capture $\mathsf{P}$); \citet{li2024chain} and \citet{feng2023towards} reach
+the same conclusion from complementary angles. Most directly,
+\citet{sanford2023representational,sanford2024transformers} prove the
+dichotomy we test: parallel-style problems (e.g.\ sparse averaging) are
+solvable by a single sufficiently wide layer, whereas $k$-hop induction and
+pointer chasing \emph{require} depth growing with the hop count. \emph{These
+are worst-case statements about what an architecture can compute. Our
+contribution is orthogonal and empirical: we measure what a trained model
+allocates, per task, and whether the allocation matches the task's $(D,W)$
+structure.}
+
+\paragraph{Shortcuts: models need not execute the serial algorithm.}
+\citet{liu2023shortcuts} show transformers frequently learn shallow, parallel
+\emph{shortcuts} to problems whose reference algorithm is serial, computing in
+far fewer sequential steps than the task nominally requires. This is the main
+reason a formally $D$-deep task may recruit no additional depth, and it makes
+accuracy measurement indispensable: without it, a flat depth response is
+ambiguous between ``inside the budget'', ``shortcut'' and ``failed''. We
+incorporate this as an explicit regime of the framework
+(Section~\ref{sec:framework}) rather than as noise.
 
 \paragraph{Stages of inference and residual-stream analysis.}
 \citet{lad2024remarkable} argue that inference proceeds through a small number
@@ -175,6 +229,109 @@ patching \citep{nanda2023attribution}; \citet{ferrando2024information} trace
 information-flow routes at scale. \emph{We use the same per-head attribution
 criterion, but study the aggregate complement---the dead set---across a graded
 task family, a level of description above any single circuit.}
+
+% ======================================================================
+\section{Framework: task complexity and network allocation}\label{sec:framework}
+% ======================================================================
+The framework has three parts: two coordinates describing the \emph{task}, two
+describing the \emph{network's response}, and a law relating them.
+
+\subsection{Task side: serial depth $D$ and parallel width $W$}
+Let $G_t$ be the minimal dependency graph of a task $t$: a DAG whose nodes are
+the intermediate values needed to map the prompt to the answer, with an edge
+$u\!\to\!v$ when computing $v$ requires $u$. Define
+\begin{align}
+D(t) &= \text{length of the longest directed path in } G_t
+        &&\text{(\emph{serial depth}: the critical path)},\\
+W(t) &= \text{size of the largest antichain in } G_t
+        &&\text{(\emph{parallel width}: mutually independent values)} .
+\end{align}
+$D$ counts steps that \emph{must} happen in sequence; $W$ counts values that
+must be held \emph{simultaneously}. Both are properties of the task
+specification, not of any model, and in our synthetic suites both are fixed by
+construction (Section~\ref{sec:method}): a $k$-step pointer chase has
+$D{=}k,W{=}1$; retrieving one of $m$ independent bindings has $D{=}1,W{=}m$.
+
+\subsection{Network side: recruited depth $\Dh$ and width $\Wh$}
+For a model with $L$ layers and $H$ heads per layer, let $s(\ell,h)$ be a
+per-head activity score (Section~\ref{sec:method}) and call a head \emph{dead}
+when $s(\ell,h) < \tau\max_{h'}s(\ell,h')$; the complement is the
+\emph{active set} $A(p)\subseteq[L]\times[H]$, and $\dl$ is the per-layer dead
+count. Write $u=\ell/(L{-}1)\in[0,1]$ for normalised depth. Define
+\begin{align}
+\Wh(p) &= \tfrac{1}{L}\textstyle\sum_{\ell}\big(H-\dl\big)
+   &&\text{(\emph{recruited width}: active heads per layer)},\\
+\Dh(p) &= q_{25}\ \text{of the dead-mass distribution over } u
+   &&\text{(\emph{recruited depth}: the active frontier)} .
+\end{align}
+$\Dh$ is a front-edge quantile---the depth by which the first quarter of dead
+mass has accumulated---because the \emph{back} of the network holds a
+task-invariant sparse readout region that pins the centroid and makes it blind
+to recruitment at the front. For cross-architecture comparison we always also
+report the normalised forms $\Wh/H$ and $\Dh$ (already a depth fraction);
+absolute head counts are not comparable between models with different $H$.
+
+\subsection{The resource-matching law}
+The hypothesis is that the model's allocation matches the task's structure
+axis-by-axis:
+\begin{equation}
+\boxed{\ \Dh \;=\; a + c\,D + c'\,W, \qquad
+        \Wh \;=\; b + \gamma\,W + \gamma'\,D\ }
+\label{eq:law}
+\end{equation}
+with the \textbf{dissociation prediction} $c'\!\approx\!0$ and
+$\gamma'\!\approx\!0$: serial demand buys layers but not heads, parallel demand
+buys heads but not layers. The coefficients carry meaning beyond significance:
+
+\begin{itemize}[leftmargin=1.4em,itemsep=2pt]
+\item $c$ = \textbf{layers per serial step} and $\gamma$ = \textbf{heads per
+parallel item}: exchange rates converting task structure into network
+resource.
+\item $a,b$ = the \textbf{task-invariant scaffold} recruited regardless of
+demand (detokenisation, readout).
+\item $c',\gamma'$ = \textbf{leakage} between axes. A large $\gamma'$ means the
+model \emph{parallelises} a serial task (a shortcut signature); a large $c'$
+means it \emph{serialises} a parallel task (width-to-depth conversion under
+capacity pressure). Both are findings, not noise.
+\end{itemize}
+
+\subsection{Capacity: feasibility and the ceiling}
+The lattice is finite, so allocation is bounded:
+\begin{equation}
+c\,D \;\le\; L_{\text{eff}}, \qquad \gamma\,W \;\le\; H,
+\label{eq:feasible}
+\end{equation}
+where $L_{\text{eff}} = L - (\text{readout stages})$ is the usable serial
+budget. Equation~\eqref{eq:feasible} yields the framework's sharpest
+prediction---a capability ceiling derived from architecture alone:
+\begin{equation}
+D_{\max} \;\approx\; L_{\text{eff}}\,/\,c .
+\label{eq:dmax}
+\end{equation}
+
+Because depth is a \emph{bounded budget} rather than a linear resource
+\citep{merrill2023parallelism}, the expected shape of $\Dh(D)$ is not a line
+but flat-then-saturating: allocation absorbs serial steps until the budget
+binds. We therefore fit Eq.~\eqref{eq:law} as a \emph{null model} and read its
+deviations, which---combined with accuracy---separate three regimes:
+
+\begin{center}
+\small
+\begin{tabular}{llll}
+\toprule
+Regime & Allocation $\Dh$ & Accuracy & Interpretation \\
+\midrule
+R1 sub-ceiling ($cD\!\ll\!L_{\text{eff}}$) & rises with $D$ (or flat if slack) & high & inside the serial budget \\
+R2 shortcut & flat & high & model did not compute serially \citep{liu2023shortcuts} \\
+R3 beyond ceiling & saturated & collapses & serial budget exhausted \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Accuracy is what makes R1--R3 distinguishable; a flat $\Dh$ alone is
+uninterpretable. This directly explains our Llama-3-70B result
+(Section~\ref{sec:factorial}): with $L{=}80$ and a six-step ladder, the model
+is deep in R1, where the framework predicts little or no depth response.
 
 % ======================================================================
 \section{Method}\label{sec:method}
@@ -504,7 +661,91 @@ paraphrase replicates. We state this explicitly so the confirmed width axis is
 not over-read into a full dissociation.
 
 % ======================================================================
-\section{Interpretation}
+\section{Architecture sets the two budgets}\label{sec:arch}
+% ======================================================================
+Equations~\eqref{eq:feasible}--\eqref{eq:dmax} make the framework
+architecture-sensitive: the serial budget is set by depth, the parallel budget
+by the head structure, and their ratio by the model's \emph{aspect ratio}
+$L/H$. Table~\ref{tab:arch} lists the relevant geometry for the model families
+in and around this study.
+
+\begin{table}[h]
+\centering
+\caption{Architectural determinants of the two budgets. $n_{kv}$ is the number
+of key/value groups (equal to $H$ under multi-head attention, smaller under
+grouped-query attention). ``Block'' distinguishes sequential attention$\to$MLP
+from parallel attention$+$MLP.}
+\label{tab:arch}
+\small
+\begin{tabular}{llrrrl}
+\toprule
+Family & Model & $L$ & $H$ & $n_{kv}$ & Block / notes \\
+\midrule
+GPT-2 & small / medium / large / xl & 12--48 & 12--25 & $=H$ & sequential, MHA \\
+Pythia & 70M / 160M / 410M & 6--24 & 8--16 & $=H$ & \textbf{parallel} attn$+$MLP \\
+Pythia & 1B & \textbf{16} & \textbf{8} & $=H$ & aspect-ratio inversion (see A4) \\
+Pythia & 1.4B / 2.8B & 24 / 32 & 16 / 32 & $=H$ & parallel attn$+$MLP \\
+Llama-3 & 8B & 32 & 32 & \textbf{8} & sequential, \textbf{GQA} \\
+Llama-3 & 70B & 80 & 64 & \textbf{8} & sequential, \textbf{GQA} \\
+Mixtral / OLMoE & MoE & --- & --- & --- & experts: a second width axis \\
+Mamba-2 / RWKV & SSM & --- & \emph{none} & --- & no heads: width axis undefined \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Predictions.}
+The framework converts these differences into falsifiable statements. We state
+them as pre-registered predictions; the runs that test them are itemised in
+Section~\ref{sec:roadmap}.
+
+\begin{enumerate}[leftmargin=1.9em,itemsep=3pt,label=\textbf{A\arabic*.}]
+\item \textbf{The parallel budget is head-structured.} $\gamma$ (heads per
+parallel item) should scale with the number of \emph{independent} attention
+channels. Under multi-head attention that is $H$; under grouped-query
+attention, where many query heads share one KV group, the effective budget may
+be closer to $n_{kv}$. Prediction: width recruitment saturates near $n_{kv}$,
+not $H$, in GQA models.
+\item \textbf{The serial budget is depth.} Either $c$ is roughly constant in
+\emph{absolute layers} across models (so deeper models simply fit more steps),
+or constant as a \emph{fraction} of $L$ (so all models exhaust their budget at
+the same $D$). These give very different $D_{\max}$ predictions via
+Eq.~\eqref{eq:dmax}, and discriminating them is the central cross-model
+measurement.
+\item \textbf{Block topology should not matter for the depth axis.} Pythia
+computes attention and MLP \emph{in parallel} within a block, GPT-2
+sequentially. At matched $(L,H)$---Pythia-410M vs.\ GPT-2-medium, both
+$24{\times}16$---the framework predicts the same $c$, i.e.\ the depth axis is a
+property of layer count rather than intra-block wiring.
+\item \textbf{Aspect ratio beats parameter count for serial tasks.} Pythia-1B
+($16{\times}8$) is \emph{shallower and narrower} than Pythia-410M
+($24{\times}16$) despite having more parameters. Prediction: 1B hits its serial
+ceiling \emph{earlier} than 410M---a within-family dissociation of capability
+from scale.
+\item \textbf{The width axis is attention-specific; the depth axis is not.}
+State-space models have layers but no heads. Prediction: the depth axis
+survives in Mamba-2/RWKV (serial demand still recruits layers) while the width
+axis has no attentional analogue---separating the two axes by architecture
+rather than by task. Correspondingly, in mixture-of-experts models the width
+axis should extend into \emph{expert} space (parallel demand recruits more
+experts per layer).
+\end{enumerate}
+
+\paragraph{What the present data can and cannot say.}
+Our measurements span two of these cells and are suggestive rather than
+decisive. (i) Both GPT-2 (sequential) and Pythia (parallel-block) families show
+demand-graded recruitment and, in their larger members, frontier extension
+(Sections~\ref{sec:recruit},~\ref{sec:frontier}), consistent with A3 but not a
+matched-$(L,H)$ test. (ii) The Llama-3 models are the only GQA systems here,
+and their unusually large idle fraction ($\sim$50\% of \emph{query} heads
+inactive on the 70B under forward-only metrics) is consistent with an effective
+parallel budget nearer $n_{kv}{=}8$ than $H{=}64$---but this is a
+single-architecture observation, confounded with scale, and we flag it as a
+hypothesis for A1 rather than evidence for it. (iii) No SSM or MoE model was
+measured. A1--A5 are therefore predictions of the framework, not results of
+this paper.
+
+% ======================================================================
+\section{Discussion}\label{sec:discussion}
 % ======================================================================
 The measurements support a compact two-axis account. Treat each model as
 holding a reserve of dormant attention heads that it \emph{recruits} on
@@ -532,6 +773,91 @@ deformation acts on a conserved backbone: a task-invariant sparse readout
 region at the back persists at every difficulty, while the action happens in
 the early-to-middle band. In short: a capacity-gated recruitment response with
 a magnitude (how many heads) and a reach (how deep).
+
+\subsection{What active-node geometry says about circuit structure}
+\label{sec:circuits}
+A circuit is a set of \emph{paths}---head reading from head, composing into a
+readout. Our observable is a set of \emph{nodes}. The relationship is a
+marginal, and being precise about it determines what may be claimed.
+
+\paragraph{What node activity licenses.}
+Under the faithfulness assumption that dead units are dispensable (the
+ablation check in Section~\ref{sec:roadmap}, item~D$'$), the active set
+\emph{contains} the circuit's nodes. Node activity therefore constrains:
+(i) the circuit's \textbf{support}---an over-approximation of where it lives;
+(ii) its \textbf{geometry}---width per layer, depth-extent, total size; and
+(iii) its \textbf{schedule}---which layers are working at all. In the
+path-bundle picture, $\Wh$ is the bundle's layer-wise width and $\Dh$ is how
+deep the bundle reaches, which is exactly why $(D,W)$ maps onto $(\Dh,\Wh)$:
+serial structure lengthens the bundle, parallel structure widens it.
+
+\paragraph{What it does not license.}
+Node activity is silent about \textbf{wiring}. Two circuits with different
+connectivity can activate identical nodes, so we cannot say from $\dl$ which
+active head reads from which earlier head. Edge-level methods are required for
+that: path patching \citep{goldowsky2023localizing}, automated circuit
+discovery \citep{conmy2023towards,syed2023attribution}, and information-flow
+routes \citep{ferrando2024information}, of which our node counts are a cheap
+marginal. We therefore make no wiring claims.
+
+\paragraph{The task prior is what closes the gap.}
+Node geometry alone underdetermines a circuit---but we never have it alone. We
+have it \emph{paired with a task whose computational structure we designed}.
+Nodes plus a known $G_t$ identify the \textbf{embedding} of $G_t$ into the
+layer$\times$head lattice: if a $k$-hop task is known to require $k$ sequential
+steps and we observe $k$ successive active bands, the task prior licenses the
+inference that each band carries one hop---an inferred \emph{schedule}, even
+though no edge was measured. This is the precise sense in which task structure
+is readable from activation structure, and it is weaker than circuit discovery
+by design.
+
+\paragraph{A two-way correspondence.}
+The framework is thus a correspondence between task structure and active-region
+geometry, usable in both directions. \emph{Forward}: $(D,W)$ predicts
+$(\Dh,\Wh)$---the law of Eq.~\eqref{eq:law}. \emph{Inverse}: the geometry of
+the active region decodes the task's computational type, making the active
+subgraph a \textbf{fingerprint of the computation}. The inverse direction is
+attractive precisely because it requires no wiring claim: showing that a simple
+decoder recovers $(D,W)$ from activation geometry demonstrates that node
+activity \emph{carries} structural information about the computation, whatever
+the wiring turns out to be.
+
+\paragraph{Relation to circuit discovery.}
+The two approaches are complementary rather than competing. Circuit discovery
+recovers wiring for \emph{one} task at high cost; we recover geometry for
+\emph{many} tasks cheaply, and---because the task family is graded---obtain a
+scaling law that single-circuit studies cannot express. Most mechanistic work
+asks ``what is the circuit for task $X$''; we ask ``how does circuit
+\emph{shape} vary with the structure of $X$''. Studies of circuit reuse
+\citep{merullo2024circuit}, function vectors \citep{todd2024function}, and
+specialised head families---induction \citep{olsson2022induction}, retrieval
+\citep{wu2024retrieval}, successor \citep{gould2023successor}---supply the
+component vocabulary that a wiring-level version of this account would use.
+
+\subsection{Implications}
+\paragraph{Conditional computation has a second knob.}
+Adaptive-depth and early-exit methods
+\citep{graves2016adaptive,elbayad2020depth,schuster2022confident,raposo2024mixture}
+adapt one scalar: how deep to go. If parallel demand is carried by heads and
+serial demand by layers, then \emph{width} is an equally principled axis for
+conditional computation, and $\gamma$ estimates how much width a given parallel
+load requires. A demand-aware model would taper both.
+
+\paragraph{Capability is predictable from shape, not only size.}
+Eq.~\eqref{eq:dmax} says the maximum serial depth a model can execute in one
+forward pass is governed by $L_{\text{eff}}/c$. Two models with equal parameter
+counts but different aspect ratios should therefore differ systematically in
+serial-task competence (prediction~A4)---capability tied to architectural
+\emph{shape} rather than scale.
+
+\paragraph{Where chain-of-thought enters.}
+If serial depth beyond the in-context budget must be externalised, the natural
+continuation of the depth axis is across \emph{tokens}: past $D_{\max}$, serial
+computation should migrate from layers to chain-of-thought steps, each running
+a bounded-depth circuit \citep{merrill2024cot,li2024chain}. Measuring that
+migration---serial structure moving from the depth axis to the token axis at
+the ceiling---is the most direct extension of this work and we leave it to
+follow-up.
 
 % ======================================================================
 \section{Limitations}
@@ -561,7 +887,24 @@ task accuracy; the prediction is that both recruitment and frontier advance
 track whether the model can actually perform the task, and that the frontier
 plateau coincides with the accuracy collapse.
 \item \textbf{Single prompt per condition.} No paraphrase variance is
-reported, so surface-length confounds are not yet excluded.
+reported, so surface-length confounds are not yet excluded. With one prompt per
+$(D,W)$ cell, the coefficients of Eq.~\eqref{eq:law} are point estimates
+without intervals and should not be quoted as measured exchange rates.
+\item \textbf{Node activity is a marginal of the circuit.} Our observable
+constrains a circuit's support and geometry but not its wiring
+(Section~\ref{sec:circuits}); all structural claims are therefore about
+\emph{shape}, not connectivity.
+\item \textbf{Heads may not be the right parallel unit.} Attention heads are
+polysemantic and features are superposed, so ``one parallel item $\approx\gamma$
+heads'' may be diffuse rather than crisp; a feature-level version of $\Wh$ could
+behave differently.
+\item \textbf{Cross-architecture claims are predictions, not results.}
+A1--A5 (Section~\ref{sec:arch}) follow from the framework but are untested
+here: no MoE or state-space model was measured, and the GQA observation is
+confounded with scale.
+\item \textbf{Correlational, not causal.} $c$ and $\gamma$ describe allocation;
+only ablation shows the recruited units are \emph{necessary}
+(roadmap item~D$'$).
 \end{enumerate}
 
 % ======================================================================
@@ -600,6 +943,19 @@ the centroid, and early-layer dead counts from the exact masks of item~A for
 all models and rungs, and report per-model $r(\text{hops},q_{25})$ with
 confidence intervals. This converts the headline two-axis result from
 ``suggestive across models, exact on one'' to ``exact across all.''
+
+\paragraph{D$'$. Faithfulness: validate that ``active'' means ``necessary''.}
+On models small enough for causal analysis (GPT-2 small/medium with
+TransformerLens), ablate the heads we call dead and verify behaviour is
+preserved, then ablate the active set and verify it breaks---the
+faithfulness--sparsity curve of \citet{conmy2023towards}, using activation or
+attribution patching \citep{nanda2023attribution,syed2023attribution} against a
+proper corrupted baseline and reporting faithfulness \emph{and} completeness
+\citep{hanna2024faithfulness,makelov2024illusions}. This single experiment
+does three jobs: it makes the active set causal rather than correlational, it
+\emph{defines} $\tau$ operationally (the elbow of the curve), and it licenses
+the support claim of Section~\ref{sec:circuits}. It is a prerequisite for the
+structural language used throughout.
 
 \paragraph{D. Threshold robustness.}
 Recompute all results for $\tau\in\{0.05,0.10,0.15,0.20\}$ and show the
@@ -703,6 +1059,85 @@ Model & Geom (L$\times$H) & Task & Dead & Frac & $q_{25}$ & Centroid & Front \\
 N.~Belrose et al.
 \newblock Eliciting latent predictions from transformers with the tuned lens.
 \newblock \emph{arXiv:2303.08112}, 2023.
+
+\bibitem[Brinkmann et al.(2024)]{brinkmann2024mechanistic}
+J.~Brinkmann et al.
+\newblock A mechanistic analysis of a transformer trained on a symbolic
+multi-step reasoning task.
+\newblock \emph{ACL}, 2024.
+
+\bibitem[Goldowsky-Dill et al.(2023)]{goldowsky2023localizing}
+N.~Goldowsky-Dill et al.
+\newblock Localizing model behavior with path patching.
+\newblock \emph{arXiv:2304.05969}, 2023.
+
+\bibitem[Gould et al.(2023)]{gould2023successor}
+R.~Gould et al.
+\newblock Successor heads: Recurring, interpretable attention heads in the wild.
+\newblock \emph{ICLR}, 2024 (arXiv 2023).
+
+\bibitem[Hanna et al.(2024)]{hanna2024faithfulness}
+M.~Hanna, S.~Pezzelle, Y.~Belinkov.
+\newblock Have faith in faithfulness: Going beyond circuit overlap when finding
+model mechanisms.
+\newblock \emph{arXiv:2403.17806}, 2024.
+
+\bibitem[Liu et al.(2023)]{liu2023shortcuts}
+B.~Liu et al.
+\newblock Transformers learn shortcuts to automata.
+\newblock \emph{ICLR}, 2023.
+
+\bibitem[Makelov et al.(2024)]{makelov2024illusions}
+A.~Makelov, G.~Lange, N.~Nanda.
+\newblock Is this the subspace you are looking for? An interpretability
+illusion for subspace activation patching.
+\newblock \emph{ICLR}, 2024.
+
+\bibitem[Merrill \& Sabharwal(2024)]{merrill2024cot}
+W.~Merrill, A.~Sabharwal.
+\newblock The expressive power of transformers with chain of thought.
+\newblock \emph{ICLR}, 2024.
+
+\bibitem[Merullo et al.(2024)]{merullo2024circuit}
+J.~Merullo, C.~Eickhoff, E.~Pavlick.
+\newblock Circuit component reuse across tasks in transformer language models.
+\newblock \emph{ICLR}, 2024.
+
+\bibitem[Olsson et al.(2022)]{olsson2022induction}
+C.~Olsson et al.
+\newblock In-context learning and induction heads.
+\newblock \emph{Anthropic}, 2022.
+
+\bibitem[Sanford et al.(2023)]{sanford2023representational}
+C.~Sanford, D.~Hsu, M.~Telgarsky.
+\newblock Representational strengths and limitations of transformers.
+\newblock \emph{NeurIPS}, 2023.
+
+\bibitem[Sanford et al.(2024)]{sanford2024transformers}
+C.~Sanford, D.~Hsu, M.~Telgarsky.
+\newblock Transformers, parallel computation, and logarithmic depth.
+\newblock \emph{ICML}, 2024.
+
+\bibitem[Stolfo et al.(2023)]{stolfo2023mechanistic}
+A.~Stolfo, Y.~Belinkov, M.~Sachan.
+\newblock A mechanistic interpretation of arithmetic reasoning in language
+models.
+\newblock \emph{EMNLP}, 2023.
+
+\bibitem[Syed et al.(2023)]{syed2023attribution}
+A.~Syed, C.~Rager, A.~Conmy.
+\newblock Attribution patching outperforms automated circuit discovery.
+\newblock \emph{arXiv:2310.10348}, 2023.
+
+\bibitem[Todd et al.(2024)]{todd2024function}
+E.~Todd et al.
+\newblock Function vectors in large language models.
+\newblock \emph{ICLR}, 2024.
+
+\bibitem[Wu et al.(2024)]{wu2024retrieval}
+W.~Wu et al.
+\newblock Retrieval head mechanistically explains long-context factuality.
+\newblock \emph{arXiv:2404.15574}, 2024.
 
 \bibitem[Biran et al.(2024)]{biran2024hopping}
 E.~Biran et al.
