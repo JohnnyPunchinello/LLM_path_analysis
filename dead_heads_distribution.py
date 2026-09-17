@@ -64,6 +64,7 @@ import torch
 
 # Reuse the (already-working) loader, task suites, and — for the attribution
 # metric — the exact per-head scoring used to produce the original figures.
+import active_subgraph_dot as _asd
 from active_subgraph_dot import (
     load_model, TASK_SUITES, compute_per_head_scores, _active_heads,
 )
@@ -359,7 +360,10 @@ def main():
 
     dump = {"model": args.model, "suite": args.suite,
             "n_layers": n_layers, "n_heads": n_heads,
-            "metric": metric_str, "threshold": args.threshold, "tasks": []}
+            "metric": metric_str, "threshold": args.threshold,
+            "load_info": dict(getattr(_asd, "LAST_LOAD_INFO", {})),
+            "position": args.position,
+            "tasks": []}
 
     for i, (text, label) in enumerate(zip(tasks, labels)):
         print(f"  [{i+1}/{len(tasks)}] {label!r}: {textwrap.shorten(text, 50)}")

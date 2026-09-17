@@ -374,6 +374,13 @@ LARGE_MODEL_PRESETS: dict = {
 
 
 
+# Populated by load_model(); read by dead_heads_distribution.py so the chosen
+# load path is recorded alongside the scores.  Without this the 4-bit / bf16 /
+# CPU-offload branch below is decided by whatever free VRAM and bitsandbytes
+# version the session happens to have, and leaves no trace in the output.
+LAST_LOAD_INFO: dict = {}
+
+
 def load_model(model_name: str, device: str = "cuda",
                hf_token: Optional[str] = None):
     """
@@ -405,6 +412,39 @@ def load_model(model_name: str, device: str = "cuda",
         huggingface_hub.login(token=resolved, add_to_git_credential=False)
 
     device = device if torch.cuda.is_available() else "cpu"
+
+    # ── Reproducibility overrides ─────────────────────────────────────────────
+    # ASD_FORCE_STRATEGY = "A" | "B"   pin the wrapping path
+    # ASD_FORCE_PRECISION = "bf16" | "nf4"   pin the Strategy-B numeric format
+    # Set both when comparing models to each other: the automatic choice depends
+    # on runtime VRAM and the installed bitsandbytes, so an unpinned comparison
+    # is not guaranteed to hold precision constant across models.
+    force_strategy = os.environ.get("ASD_FORCE_STRATEGY", "").upper() or None
+    force_precision = os.environ.get("ASD_FORCE_PRECISION", "").lower() or None
+    # ASD_ATTN_IMPL="eager" is required to read attention weights
+    # (sdpa/flash return none).  Only affects Strategy B.
+    attn_impl = os.environ.get("ASD_ATTN_IMPL", "").lower() or None
+    if force_strategy not in (None, "A", "B"):
+        raise ValueError(f"ASD_FORCE_STRATEGY must be A or B, got {force_strategy!r}")
+    if force_precision not in (None, "bf16", "nf4"):
+        raise ValueError(f"ASD_FORCE_PRECISION must be bf16 or nf4, got {force_precision!r}")
+
+    LAST_LOAD_INFO.clear()
+    LAST_LOAD_INFO.update(model=model_name, device=device,
+                          attn_impl=attn_impl,
+                          forced_strategy=force_strategy,
+                          forced_precision=force_precision,
+                          strategy=None, precision=None, wrapper=None)
+    try:
+        import bitsandbytes as _bnb_probe
+        LAST_LOAD_INFO["bitsandbytes"] = getattr(_bnb_probe, "__version__", "unknown")
+    except Exception:
+        LAST_LOAD_INFO["bitsandbytes"] = None
+    if torch.cuda.is_available():
+        LAST_LOAD_INFO["gpu"] = torch.cuda.get_device_name(0)
+        LAST_LOAD_INFO["vram_gb"] = round(
+            torch.cuda.get_device_properties(0).total_memory / 1e9, 1)
+
     extra: dict = {}
     if _is_llama_family(model_name):
         extra = dict(fold_ln=False, center_writing_weights=False,
@@ -424,7 +464,9 @@ def load_model(model_name: str, device: str = "cuda",
         # During from_pretrained TL holds three copies simultaneously:
         #   HF model + TL model + state-dict tensors ≈ 3 × bf16_gb peak.
         # Only use this path when the triple-copy peak fits in 90% of VRAM.
-        if bf16_gb * 3 < vram_gb * 0.90:
+        use_a = (bf16_gb * 3 < vram_gb * 0.90) if force_strategy is None \
+                else (force_strategy == "A")
+        if use_a:
             print(f"  [A] Loading HF model to GPU (bfloat16) …")
             hf_model_a = None
             try:
@@ -449,6 +491,8 @@ def load_model(model_name: str, device: str = "cuda",
                 del hf_model_a
                 torch.cuda.empty_cache()
                 print(f"  [A] Loaded {model_name} in bfloat16 via TransformerLens.")
+                LAST_LOAD_INFO.update(strategy="A", precision="bf16",
+                                      wrapper="HookedTransformer")
                 return tl_model
 
             except Exception as e:
@@ -465,13 +509,17 @@ def load_model(model_name: str, device: str = "cuda",
         # capture activations at the same points as TransformerLens hooks.
         print(f"  [B] Loading HF model with native hooks (no TL wrapping) …")
         try:
-            if bf16_gb < vram_gb * 0.88:
+            want_bf16 = (bf16_gb < vram_gb * 0.88) if force_precision is None \
+                        else (force_precision == "bf16")
+            if want_bf16:
                 # bfloat16 fits — plain loading, best quality
+                _kw = {"attn_implementation": attn_impl} if attn_impl else {}
                 hf_model_b = AutoModelForCausalLM.from_pretrained(
                     model_name,
                     torch_dtype=torch.bfloat16,
                     device_map="auto",
                     low_cpu_mem_usage=True,
+                    **_kw,
                 )
             else:
                 # Model is too large for bfloat16 on GPU alone.
@@ -565,6 +613,15 @@ def load_model(model_name: str, device: str = "cuda",
                         print(f"  [B] OOM → retrying at {gpu_q2} GiB …")
                         hf_model_b = _load_4bit(gpu_q2)
 
+                elif force_precision == "nf4":
+                    raise RuntimeError(
+                        f"ASD_FORCE_PRECISION=nf4 requested but bitsandbytes "
+                        f"{_bnb_ver} does not accept the _is_hf_initialized "
+                        f"kwarg, so the 4-bit path cannot be used. Silently "
+                        f"falling back to bfloat16 would make this a duplicate "
+                        f"of the bf16 arm rather than a precision control. "
+                        f"Install a bitsandbytes build that supports it, or "
+                        f"drop the nf4 arm.")
                 else:
                     # ── Old BnB (< 0.43): bfloat16 + CPU offloading ───────
                     # No 4-bit attempt — a failed 4-bit load leaves ~70 GiB
@@ -589,6 +646,12 @@ def load_model(model_name: str, device: str = "cuda",
 
             tokenizer_b = AutoTokenizer.from_pretrained(model_name)
             hf_model_b.eval()
+            _p = next(hf_model_b.parameters())
+            _q = getattr(hf_model_b, "is_quantized", False) or \
+                 type(_p).__name__ == "Params4bit"
+            LAST_LOAD_INFO.update(strategy="B",
+                                  precision=("nf4" if _q else str(_p.dtype).replace("torch.","")),
+                                  wrapper="_HFHookedModel")
             wrapped = _HFHookedModel(hf_model_b, tokenizer_b, model_name)
             print(f"  [B] Loaded {model_name} via native HF hooks.")
             return wrapped
@@ -2295,6 +2358,94 @@ def _gen_dw_grid(depths=(1, 3, 5), widths=(1, 3, 5)):
     return tasks, labels, answers
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Controls added to address reviewer-facing weaknesses of the k-ladder:
+#   (1) no replicates      → _gen_serial_replicates  (frame as a random effect)
+#   (2) numeral confound   → _gen_fixed_digit        (same digit, different work)
+# Both reuse _PERM / _follow so the underlying computation is unchanged.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Eight wordings of the identical pointer chase.  Frame is meant to vary: it is
+# the replicate dimension, so per-condition variance becomes estimable and the
+# effect must survive frame variation rather than being measured in one frame.
+_FRAMES = [
+    "Rules: {r}Start at {s}. Take {k} steps. You end at",
+    "Rules: {r}Beginning at {s}, apply the rule {k} times. The result is",
+    "Rules: {r}From {s}, follow the arrows {k} times to reach",
+    "Rules: {r}Let x = {s}. After {k} applications, x equals",
+    "Rules: {r}Starting from {s} and moving {k} times, you arrive at",
+    "Rules: {r}Take {k} steps beginning at {s}. Your final position is",
+    "Rules: {r}Apply the mapping {k} times to {s}. This gives",
+    "Rules: {r}If you start at {s} and step {k} times, you finish at",
+]
+
+
+def _gen_serial_replicates(depths=range(1, 7), frames=None, start=0):
+    """Serial-depth ladder crossed with paraphrase frames.
+
+    Returns depths x frames prompts labelled D{k}F{f}.  Frame is a nuisance
+    factor to be modelled, not controlled: with one prompt per condition the
+    only available inference is an ordering test over k, whereas this design
+    supports a variance-based test with frame as a random effect.
+    """
+    frames = _FRAMES if frames is None else frames
+    tasks, labels, answers = [], [], []
+    for k in depths:
+        for f, tmpl in enumerate(frames):
+            tasks.append(tmpl.format(r=_PERM_RULES, s=start, k=k))
+            labels.append(f"D{k}F{f}")
+            answers.append(str(_follow(start, k)))
+    return tasks, labels, answers
+
+
+# Rule tables whose orbits differ in length, so a FIXED numeral k corresponds to
+# genuinely different amounts of state tracking:
+#   cyc5  full 5-cycle          - k distinct transitions, k distinct states
+#   cyc3  3-cycle + 2 fixed pts - state repeats every 3 steps
+#   cyc2  single transposition  - alternates between two states
+#   ident identity              - no state change at all
+_RULE_TABLES = {
+    "cyc5":  {0: 2, 1: 4, 2: 1, 3: 0, 4: 3},
+    "cyc3":  {0: 1, 1: 2, 2: 0, 3: 3, 4: 4},
+    "cyc2":  {0: 2, 1: 1, 2: 0, 3: 3, 4: 4},
+    "ident": {0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
+}
+
+
+def _rules_text(table):
+    return "Rules: " + " ".join(f"{a} goes to {b}." for a, b in sorted(table.items())) + " "
+
+
+def _follow_table(table, start, k):
+    s = start
+    for _ in range(k):
+        s = table[s]
+    return s
+
+
+def _gen_fixed_digit(depths=(3, 4, 5), tables=("cyc5", "cyc3", "cyc2", "ident"),
+                     start=0):
+    """Numeral control: hold the digit fixed, vary the computation behind it.
+
+    Within a fixed k the prompts differ only in the rule table, so the written
+    quantity is identical while the number of distinct states traversed is not.
+    A response that tracks the digit rather than the computation predicts no
+    variation within a k block; a response that tracks the computation predicts
+    an ordering across tables (ident < cyc2 < cyc3 < cyc5 in states visited).
+
+    Rule-table strings are the same length across tables by construction, so
+    prompt length is constant within and across blocks.
+    """
+    tasks, labels, answers = [], [], []
+    for k in depths:
+        for name in tables:
+            tbl = _RULE_TABLES[name]
+            tasks.append(_rules_text(tbl) + f"Start at {start}. Take {k} steps. You end at")
+            labels.append(f"K{k}R{name}")
+            answers.append(str(_follow_table(tbl, start, k)))
+    return tasks, labels, answers
+
+
 def _register_factorial_suites():
     """Build the (D, W) suites and add them to TASK_SUITES (labels carry D,W;
     the gold answers are stashed under the '_answers' key for accuracy scoring)."""
@@ -2313,6 +2464,11 @@ def _register_factorial_suites():
     TASK_SUITES["parallel_width_lm"] = {"tasks": pl_t, "labels": pl_l, "_answers": pl_a}
     TASK_SUITES["dw_grid"]          = {"tasks": gr_t, "labels": gr_l, "_answers": gr_a}
     TASK_SUITES["dw_factorial"]     = {"tasks": fac_t, "labels": fac_l, "_answers": fac_a}
+
+    rp_t, rp_l, rp_a = _gen_serial_replicates()
+    fd_t, fd_l, fd_a = _gen_fixed_digit()
+    TASK_SUITES["serial_replicates"] = {"tasks": rp_t, "labels": rp_l, "_answers": rp_a}
+    TASK_SUITES["fixed_digit"]       = {"tasks": fd_t, "labels": fd_l, "_answers": fd_a}
 
 
 _register_factorial_suites()
