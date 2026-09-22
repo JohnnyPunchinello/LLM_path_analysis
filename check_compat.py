@@ -2,20 +2,25 @@
 """
 Can the contribution metric run on this model?  Answers from the config alone.
 
-The metric reads the input to `attn.o_proj` and reshapes it to
-(n_heads, d_head), so it requires an attention module exposing `o_proj` whose
-input width equals n_heads * d_head.  Architectures that name the projection
-differently (GPT-2 `c_proj`, NeoX/Falcon `dense`, MPT `out_proj`) fall back to
-the attribution metric, which -- per the manuscript -- disagrees with
-contribution at the layer level and is therefore not interchangeable with it.
-Latent-attention designs (DeepSeek MLA) expose `o_proj` but do not decompose
-into independent per-head slices, so the reshape is invalid.
+The metric reads the input to the attention output projection and reshapes it
+to (n_heads, d_head), so it requires a projection whose input width equals
+n_heads * d_head.  deep_probe.py hooks `o_proj`, `dense` (Pythia/NeoX),
+`c_proj` (GPT-2, a Conv1D) and `out_proj`/`wo`, and verifies the weight layout
+functionally on the first forward, so all of these use the same contribution
+metric -- never the gradient-based attribution fallback.  Latent-attention
+designs (DeepSeek MLA) expose `o_proj` but do not decompose into independent
+per-head slices; deep_probe refuses those at run time.
+
+--align SUITE additionally loads each tokenizer (no weights) and reports where
+the activation will be measured: the position whose next token is the answer
+digit (see deep_probe.align_answer).
 
 Builds the module tree on the meta device: no weights are downloaded, so a
 100B-parameter model is checked in seconds.
 
     python3 check_compat.py meta-llama/Llama-3.1-70B mistralai/Mistral-7B-v0.1 ...
     python3 check_compat.py --preset large
+    python3 check_compat.py gpt2 Qwen/Qwen2.5-0.5B --align serial_depth_fs
 """
 import argparse, sys
 
@@ -78,14 +83,19 @@ def check(repo, token=None):
         row["verdict"] = "no attention module"; return row
     row["attn_cls"] = type(attn).__name__
 
-    op = getattr(attn, "o_proj", None)
+    op, pname = None, None
+    for n in ("o_proj", "dense", "c_proj", "out_proj", "wo"):   # deep_probe's order
+        if hasattr(attn, n) and hasattr(getattr(attn, n), "weight"):
+            op, pname = getattr(attn, n), n
+            break
     if op is None:
-        alt = [n for n in ("c_proj", "dense", "out_proj", "wo") if hasattr(attn, n)]
-        row["verdict"] = (f"no o_proj (found {alt[0]}) -> attribution only"
-                          if alt else "no output projection found")
+        row["verdict"] = "no output projection found"
         return row
+    row["proj"] = pname
 
-    in_f = getattr(op, "in_features", None)
+    # nn.Linear has in_features; GPT-2's Conv1D stores weight as [in, out]
+    in_f = getattr(op, "in_features", None) or (
+        op.weight.shape[0] if type(op).__name__ == "Conv1D" else None)
     H, d = row.get("H"), row.get("d")
     hd = getattr(cfg, "head_dim", None) or (d // H if (H and d) else None)
     row["o_proj_in"] = in_f
@@ -94,11 +104,12 @@ def check(repo, token=None):
         # The model is fine, but the pipeline must use cfg.head_dim rather than
         # hidden_size // n_heads.  When those differ, older revisions reshape to
         # the wrong width, the exception is swallowed, and scores come back NaN.
+        via = "" if pname == "o_proj" else f" via {pname}"
         if d and hd != d // H:
-            row["verdict"] = (f"OK - contribution, BUT head_dim={hd} != hidden/H={d//H}; "
-                              "requires the head_dim fix in load_model")
+            row["verdict"] = (f"OK - contribution{via}, head_dim={hd} != hidden/H={d//H} "
+                              "(handled by the head_dim fix in load_model)")
         else:
-            row["verdict"] = "OK - contribution"
+            row["verdict"] = f"OK - contribution{via}"
     elif in_f and H and hd:
         row["verdict"] = f"o_proj in={in_f} != H*head_dim={H*hd} -> check head layout"
     else:
@@ -106,11 +117,33 @@ def check(repo, token=None):
     return row
 
 
+def check_align(repo, suite, token=None):
+    """Where will deep_probe measure?  Tokenizer only, every prompt of the suite."""
+    try:
+        from transformers import AutoTokenizer
+        import active_subgraph_dot as asd
+        from deep_probe import align_answer
+        tok = AutoTokenizer.from_pretrained(repo, token=token)
+        forms = set()
+        for text in asd.TASK_SUITES[suite]["tasks"]:
+            forms.add(tuple(align_answer(tok, text)[2]))
+    except SystemExit as e:
+        return f"ALIGN FAILED: {e}"
+    except Exception as e:
+        return f"tokenizer failed: {type(e).__name__}: {str(e)[:80]}"
+    if len(forms) > 1:
+        return f"ALIGN FAILED: inconsistent across prompts {sorted(forms)}"
+    extra = next(iter(forms))
+    return "last prompt token" if not extra else f"prompt + {list(extra)}"
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("repos", nargs="*")
     ap.add_argument("--preset", choices=sorted(PRESETS))
     ap.add_argument("--token", default=None)
+    ap.add_argument("--align", metavar="SUITE",
+                    help="also check answer alignment on this suite's prompts")
     a = ap.parse_args()
     repos = list(a.repos) + (PRESETS[a.preset] if a.preset else [])
     if not repos:
@@ -120,5 +153,7 @@ if __name__ == "__main__":
     for r in repos:
         x = check(r, a.token)
         print(f"{x['repo']:<42}{str(x.get('L','-')):>4}{str(x.get('H','-')):>4}"
-              f"{str(x.get('KV','-')):>4}{str(x.get('d','-')):>6}  "
+              f"{str(x.get('KV') or '-'):>4}{str(x.get('d','-')):>6}  "
               f"{str(x.get('attn_cls','-')):<26} {x['verdict']}")
+        if a.align:
+            print(f"{'':<42}measured position ({a.align}): {check_align(r, a.align, a.token)}")

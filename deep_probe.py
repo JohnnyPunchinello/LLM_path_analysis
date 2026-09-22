@@ -5,7 +5,7 @@ answer, so activation patterns can be studied on the items the model solves.
 
   contribution  [L,H]      per-head output norm at the measured position: the
                            one whose next token is the answer digit (the
-                           prompt's last token, or a trailing "▁" for
+                           prompt's last token, or a trailing space token for
                            tokenizers that split " 6"; see align_answer)
   prediction               greedy continuation, digit-constrained argmax,
                            gold rank/probability, and correctness under each
@@ -331,6 +331,13 @@ def _binom_sf(x, n, p):
     return sum(math.comb(n, j) * p**j * (1 - p)**(n - j) for j in range(x, n + 1))
 
 
+def _above_chance(D, ok, chance, min_correct=3):
+    """Depths whose accuracy beats chance (one-sided binomial p < .05)."""
+    return [int(k) for k in np.unique(D)
+            if ok[D == k].sum() >= min_correct
+            and _binom_sf(int(ok[D == k].sum()), int((D == k).sum()), chance) < .05]
+
+
 def _load(path, criterion):
     d = json.load(open(path))
     L, H = d["n_layers"], d["n_heads"]
@@ -352,6 +359,7 @@ def _load(path, criterion):
         digit_mass=np.array([t.get("digit_mass", np.nan) for t in T], float),
         PR=np.where(s2 > 0, s * s / np.where(s2 > 0, s2, 1), 0) / H,        # [n, L]
         share=s / s.sum(1, keepdims=True),                                  # [n, L]
+        mass=s,                                                             # [n, L]
         chance=1 / len({t["gold"] for t in T}))
 
 
@@ -411,16 +419,15 @@ def analyse_one(path, criterion="correct_strict", nperm=2000, seed=0):
     print("\n[0] ACCURACY BY DEPTH")
     print(f"    {'D':>3}{'n':>5}{'correct':>9}{'acc':>7}{'p>chance':>10}{'genuine':>9}"
           f"{'echo k':>8}{'P(gold)':>9}{'P(digit)':>10}")
-    above = []
     for k in np.unique(D):
         m = D == k; n, nc = int(m.sum()), int(ok[m].sum()); a = nc / n
         pb = _binom_sf(nc, n, c)
         # share of correct items that are real solves rather than guesses
         gen = max(0.0, (a - c) / (1 - c)) / a if a > 0 else 0.0
-        if pb < .05 and nc >= 3: above.append(int(k))
         print(f"    {k:>3}{n:>5}{nc:>9}{a:>7.2f}{pb:>10.4f}{gen:>9.2f}"
               f"{x['echo'][m].mean():>8.2f}{np.nanmean(x['gold_prob'][m]):>9.3f}"
               f"{np.nanmean(x['digit_mass'][m]) if np.isfinite(x['digit_mass'][m]).any() else np.nan:>10.3f}")
+    above = _above_chance(D, ok, c)
     print(f"    total {ok.sum()}/{len(ok)}   depths above chance (p<.05): {above or 'none'}")
 
     res = dict(model=x["model"], suite=x["suite"], L=x["L"], D=D, ok=ok, chance=c,
@@ -511,6 +518,132 @@ def analyse(paths, plot_path=None, criterion="correct_strict", nperm=2000):
     return results
 
 
+# ───────────────────────────── layerwise view ───────────────────────────────
+# How each layer's activation changes as serial steps increase.  Per item and
+# layer, from the per-head contributions at the measured position:
+#   mass   the layer's attention-output mass (sum of head norms)
+#   share  that mass as a fraction of the item's total over all layers
+#   PR     how evenly the layer's heads share it (participation ratio / H)
+# Each line is the mean over items at one depth D, drawn as the change from the
+# lowest depth shown, so a layer doing more work at higher D rises with colour.
+
+LAYER_METRICS = {
+    "mass":  ("attention-output mass", "% change vs D{b}"),
+    "share": ("share of total mass",   "change vs D{b} (pp)"),
+    "PR":    ("head dispersion PR/H",  "change vs D{b}"),
+}
+
+
+def layer_profiles(path, metric="mass", correct_only=False,
+                   criterion="correct_strict", min_items=5):
+    """Per-depth mean layer profiles, as change from the lowest depth kept.
+
+    correct_only keeps correct items at depths where accuracy beats chance and
+    at least min_items are correct; otherwise every item is used.
+    """
+    x = _load(path, criterion)
+    D, ok, Y = x["D"], x["ok"], x[metric]
+    if correct_only:
+        keep = [k for k in _above_chance(D, ok, x["chance"]) if ok[D == k].sum() >= min_items]
+        sel = ok
+    else:
+        keep, sel = sorted(int(k) for k in np.unique(D)), np.ones(len(D), bool)
+    prof = {k: Y[sel & (D == k)].mean(0) for k in keep}
+    out = dict(model=x["model"], suite=x["suite"], L=x["L"], metric=metric,
+               correct_only=correct_only, depths=keep,
+               n={k: int((sel & (D == k)).sum()) for k in keep},
+               acc=float(ok.mean()), chance=x["chance"], change={}, slope=None)
+    if len(keep) < 2:
+        return out
+    b = prof[keep[0]]
+    for k in keep:
+        out["change"][k] = (100 * (prof[k] / b - 1) if metric == "mass" else
+                            100 * (prof[k] - b) if metric == "share" else prof[k] - b)
+    ks = np.array(keep, float); kc = ks - ks.mean()
+    Z = np.stack([out["change"][k] for k in keep])
+    out["slope"] = kc @ (Z - Z.mean(0)) / (kc @ kc)     # change per extra step, per layer
+    return out
+
+
+def _short(model):
+    return model.split("/")[-1]
+
+
+def layerwise(paths, out_png, metric="mass", correct_only=False,
+              criterion="correct_strict", ncols=4, dmax=6):
+    """Small multiples: one panel per file, one line per depth."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import Normalize
+    P = [layer_profiles(p, metric, correct_only, criterion) for p in paths]
+    n = len(P); nrows = -(-n // ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.2 * ncols, 3.1 * nrows),
+                             squeeze=False, constrained_layout=True)
+    cmap, norm = plt.get_cmap("viridis"), Normalize(1, dmax)
+    name, unit = LAYER_METRICS[metric]
+    for a, r in zip(axes.flat, P):
+        title = f"{_short(r['model'])}\n{r['suite']}  acc {r['acc']:.2f}"
+        a.set_title(title, fontsize=8)
+        a.axhline(0, c="k", lw=.5)
+        if not r["change"]:
+            a.text(.5, .5, "fewer than 2 depths\nwith enough correct items",
+                   ha="center", va="center", transform=a.transAxes, fontsize=8)
+            a.set_xticks([]); a.set_yticks([])
+            continue
+        xs = np.linspace(0, 1, r["L"])
+        for k in r["depths"][1:]:
+            a.plot(xs, r["change"][k], c=cmap(norm(k)), lw=1.3)
+        a.set_ylabel(unit.format(b=r["depths"][0]), fontsize=7)
+        a.tick_params(labelsize=7)
+    for a in axes.flat[n:]:
+        a.axis("off")
+    for a in axes[-1]:
+        a.set_xlabel("relative layer depth (0 = first, 1 = last)", fontsize=7)
+    sub = "correct items at above-chance depths" if correct_only else "all items"
+    fig.suptitle(f"{name} by layer as serial steps increase ({sub}); "
+                 f"colour = D", fontsize=11)
+    fig.colorbar(ScalarMappable(norm, cmap), ax=axes, shrink=.6, label="D (steps)")
+    fig.savefig(out_png, dpi=110, bbox_inches="tight"); plt.close(fig)
+    return P
+
+
+def overview(paths, out_png, metric="mass", correct_only=False,
+             criterion="correct_strict", bins=40):
+    """One row per file: each layer's change per extra step, on a common
+    relative-depth axis.  Rows are scaled to their own maximum so the location
+    of the effect is comparable across models; the scale is printed at right."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    P = [layer_profiles(p, metric, correct_only, criterion) for p in paths]
+    grid = np.full((len(P), bins), np.nan); scale = []
+    xb = np.linspace(0, 1, bins)
+    for i, r in enumerate(P):
+        if r["slope"] is None:
+            scale.append(None); continue
+        v = np.interp(xb, np.linspace(0, 1, r["L"]), r["slope"])
+        m = np.abs(v).max() or 1.0
+        grid[i] = v / m; scale.append(m)
+    fig, a = plt.subplots(figsize=(10, 0.32 * len(P) + 1.6))
+    im = a.imshow(np.ma.masked_invalid(grid), aspect="auto", cmap="RdBu_r",
+                  vmin=-1, vmax=1, extent=(0, 1, len(P) - .5, -.5))
+    a.set_yticks(range(len(P)))
+    a.set_yticklabels([f"{_short(r['model'])} ({r['suite']})" for r in P], fontsize=7)
+    for i, m in enumerate(scale):
+        a.text(1.01, i, "no data" if m is None else f"±{m:.2g}", va="center",
+               fontsize=6, transform=a.get_yaxis_transform())
+    name, unit = LAYER_METRICS[metric]
+    a.set_xlabel("relative layer depth")
+    sub = "correct items, above-chance depths" if correct_only else "all items"
+    a.set_title(f"{name}: change per extra step ({unit.split(' vs')[0]} per step, "
+                f"row-scaled; {sub})", fontsize=9)
+    fig.colorbar(im, ax=a, shrink=.8, label="red = grows with D, blue = shrinks")
+    fig.savefig(out_png, dpi=110, bbox_inches="tight"); plt.close(fig)
+    return P
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--model"); ap.add_argument("--suite", default="serial_depth_fs")
@@ -525,7 +658,17 @@ if __name__ == "__main__":
                              "correct_first_digit", "correct"],
                     help="which correctness field selects the items")
     ap.add_argument("--nperm", type=int, default=2000)
+    ap.add_argument("--layerwise", metavar="PNG",
+                    help="with --analyse: per-model layer profiles by depth")
+    ap.add_argument("--overview", metavar="PNG",
+                    help="with --analyse: one heatmap row per file")
+    ap.add_argument("--metric", default="mass", choices=sorted(LAYER_METRICS))
+    ap.add_argument("--correct-only", action="store_true",
+                    help="layerwise/overview on correct items at above-chance depths")
     a = ap.parse_args()
-    if a.analyse: analyse(a.analyse, a.plot, a.criterion, a.nperm)
+    if a.analyse and (a.layerwise or a.overview):
+        if a.layerwise: layerwise(a.analyse, a.layerwise, a.metric, a.correct_only, a.criterion)
+        if a.overview:  overview(a.analyse, a.overview, a.metric, a.correct_only, a.criterion)
+    elif a.analyse: analyse(a.analyse, a.plot, a.criterion, a.nperm)
     elif a.model: run(a)
     else: ap.error("--model or --analyse required")
