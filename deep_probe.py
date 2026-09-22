@@ -3,7 +3,10 @@
 Per-item probe: per-head contribution at the final position plus the model's
 answer, so activation patterns can be studied on the items the model solves.
 
-  contribution  [L,H]      per-head output norm at the prompt's final position
+  contribution  [L,H]      per-head output norm at the measured position: the
+                           one whose next token is the answer digit (the
+                           prompt's last token, or a trailing "▁" for
+                           tokenizers that split " 6"; see align_answer)
   prediction               greedy continuation, digit-constrained argmax,
                            gold rank/probability, and correctness under each
 
@@ -18,6 +21,47 @@ prompt per depth, conditioning on correctness leaves too few points to fit.
 import argparse, json, math, os, re, sys
 from pathlib import Path
 import numpy as np
+
+
+# ────────────────────────── answer alignment ────────────────────────────────
+def align_answer(tok, text, digits="0123456789"):
+    """Make the answer digit the NEXT token after the measured position.
+
+    Standard practice (multi-hop / binding / entity-tracking circuit work) is to
+    measure at the position whose next-token prediction is the answer.  How
+    " 6" tokenizes decides where that is.  GPT-2 and Pythia have a single " 6"
+    token, so it is the prompt's last token.  Most current tokenizers split it
+    into a bare space plus "6" (Llama-3 and Qwen "Ġ"+"6"; Mistral, Yi, Phi-3,
+    Gemma "▁"+"6"); the space token is then fed as part of the input and the
+    measurement moves onto it.  Without this, the Sep 17 runs measured at a
+    position whose top prediction was the space (72-98% probability) in all
+    eight models.  Derived from the tokenizer, per prompt, not assumed.
+
+    Returns (feed_ids, {digit: answer_token_id}, appended_token_strings).
+    Raises if the digit is not a single token after a shared feed, rather than
+    measuring somewhere that does not predict the answer.
+    """
+    base = tok(text)["input_ids"]
+    feed, ans = None, {}
+    for d in digits:
+        full = tok(text + " " + d)["input_ids"]
+        f, a = full[:-1], full[-1]
+        if full[:len(base)] != base or tok.decode([a]).strip() != d:
+            raise SystemExit(f"answer {d!r} is not a single token after the prompt "
+                             f"(tokens {tok.convert_ids_to_tokens(full[len(base)-1:])}); "
+                             f"cannot align the measured position with the answer")
+        if feed is None:
+            feed = f
+        elif f != feed:
+            raise SystemExit(f"digits need different inputs before the answer "
+                             f"({tok.convert_ids_to_tokens(feed[len(base):])} vs "
+                             f"{tok.convert_ids_to_tokens(f[len(base):])})")
+        ans[d] = a
+    extra = feed[len(base):]
+    if extra and tok.decode(extra).strip():
+        raise SystemExit(f"alignment would append non-whitespace tokens "
+                         f"{tok.convert_ids_to_tokens(extra)}")
+    return feed, ans, tok.convert_ids_to_tokens(extra)
 
 
 # ────────────────────────────── capture ─────────────────────────────────────
@@ -46,19 +90,11 @@ def run(args):
     else:
         tasks, labels, golds = suite()
 
-    # The gold answer is always a single digit, so an unconstrained read can
-    # record a miss when a newline or punctuation outranks every digit while the
-    # model's digit preference is still correct.  We additionally score
-    # restricted to the digit alphabet and record the gold token's rank and
-    # probability, which separates "confidently wrong" from "narrowly beaten".
-    ANS = {}
-    for _d in "0123456789":
-        _c = set()
-        for _f in (_d, " " + _d):
-            _e = tok.encode(_f, add_special_tokens=False)
-            if len(_e) == 1: _c.add(_e[0])
-        if _c: ANS[_d] = sorted(_c)
-    print(f"  answer alphabet: {len(ANS)}/10 digits are single tokens")
+    # The measured position is the one whose next token is the answer digit;
+    # see align_answer.  Report once which form this tokenizer needs.
+    _f, _a, _x = align_answer(tok, tasks[0])
+    print(f"  measured position: {'prompt + ' + str(_x) if _x else 'last prompt token'}"
+          f"   answer token form: {tok.convert_ids_to_tokens([_a['6']])[0]!r}")
 
     # ── output projection: name and weight layout differ by architecture ──────
     # o_proj (Llama/Mistral/Qwen/OLMo/Gemma/Phi/Yi/Mixtral) is nn.Linear, weight
@@ -147,7 +183,9 @@ def run(args):
         for i, (text, label) in enumerate(zip(tasks, labels)):
             print(f"  [{i+1}/{len(tasks)}] {label}")
             store.clear()
-            enc = {k: v.to(hf.device) for k, v in tok(text, return_tensors="pt").items()}
+            feed, ANS, appended = align_answer(tok, text)
+            ids = torch.tensor([feed], device=hf.device)
+            enc = {"input_ids": ids, "attention_mask": torch.ones_like(ids)}
             with torch.no_grad():
                 res = hf(**enc, use_cache=True)
 
@@ -164,10 +202,9 @@ def run(args):
             toks = tok.convert_ids_to_tokens(enc["input_ids"][0])
             gold = None if golds[i] is None else str(golds[i]).strip()
 
-            # These tokenizers split " 1" into a bare space token plus the digit,
-            # so the argmax at the final position is whitespace and a one-token
-            # read records nothing.  Generate greedily instead and judge the
-            # first non-space character of the continuation.
+            # The digit-constrained read below is the primary one, taken at the
+            # measured position.  Greedy generation is kept as a behavioural
+            # check: the model may still emit something else first.
             # 4 tokens truncated verbose models before they answered (Qwen2.5-7B
             # emitted "  . What is" in every case and was scored as a miss), so
             # the budget is 16 and several independent readings are recorded.
@@ -203,15 +240,11 @@ def run(args):
             tv, ti = probs.topk(5)
             top5 = [[tok.decode([int(j)]), round(float(v), 4)] for v, j in zip(tv, ti)]
 
-            pred_con, gold_rank, gold_prob = None, None, None
-            if ANS:
-                _best, _bp = None, -1.0
-                for _d, _cand in ANS.items():
-                    _p = float(max(probs[_c] for _c in _cand))
-                    if _p > _bp: _best, _bp = _d, _p
-                pred_con = _best
+            # digit-constrained read over the exact answer tokens for this prompt
+            pred_con = max(ANS, key=lambda _d: float(probs[ANS[_d]]))
+            gold_rank, gold_prob, digit_mass = None, None, float(sum(probs[a] for a in ANS.values()))
             if gold is not None and gold in ANS:
-                gold_prob = float(max(probs[_c] for _c in ANS[gold]))
+                gold_prob = float(probs[ANS[gold]])
                 gold_rank = int((probs > gold_prob).sum()) + 1
 
             # Whether a BOS token exists at all decides whether attention to
@@ -246,6 +279,10 @@ def run(args):
                 "correct_strict": (gold is not None and pred_con == gold
                                    and pred_first_digit == gold),
                 "gold_rank": gold_rank, "gold_prob": gold_prob,
+                # probability on any digit at the measured position: low values
+                # mean the model is not about to answer here
+                "digit_mass": digit_mass,
+                "measured_token": toks[-1], "appended": appended,
                 "has_bos": has_bos, "pos0_token": toks[0] if toks else None,
                 "contribution": contrib.tolist(),
             })
@@ -312,6 +349,7 @@ def _load(path, criterion):
         echo=np.array([t.get("pred_first_digit") == re.search(r"Take (\d+) steps", t["text"]).group(1)
                        for t in T]),
         gold_prob=np.array([t.get("gold_prob") or np.nan for t in T], float),
+        digit_mass=np.array([t.get("digit_mass", np.nan) for t in T], float),
         PR=np.where(s2 > 0, s * s / np.where(s2 > 0, s2, 1), 0) / H,        # [n, L]
         share=s / s.sum(1, keepdims=True),                                  # [n, L]
         chance=1 / len({t["gold"] for t in T}))
@@ -372,7 +410,7 @@ def analyse_one(path, criterion="correct_strict", nperm=2000, seed=0):
 
     print("\n[0] ACCURACY BY DEPTH")
     print(f"    {'D':>3}{'n':>5}{'correct':>9}{'acc':>7}{'p>chance':>10}{'genuine':>9}"
-          f"{'echo k':>8}{'P(gold)':>9}")
+          f"{'echo k':>8}{'P(gold)':>9}{'P(digit)':>10}")
     above = []
     for k in np.unique(D):
         m = D == k; n, nc = int(m.sum()), int(ok[m].sum()); a = nc / n
@@ -381,7 +419,8 @@ def analyse_one(path, criterion="correct_strict", nperm=2000, seed=0):
         gen = max(0.0, (a - c) / (1 - c)) / a if a > 0 else 0.0
         if pb < .05 and nc >= 3: above.append(int(k))
         print(f"    {k:>3}{n:>5}{nc:>9}{a:>7.2f}{pb:>10.4f}{gen:>9.2f}"
-              f"{x['echo'][m].mean():>8.2f}{np.nanmean(x['gold_prob'][m]):>9.3f}")
+              f"{x['echo'][m].mean():>8.2f}{np.nanmean(x['gold_prob'][m]):>9.3f}"
+              f"{np.nanmean(x['digit_mass'][m]) if np.isfinite(x['digit_mass'][m]).any() else np.nan:>10.3f}")
     print(f"    total {ok.sum()}/{len(ok)}   depths above chance (p<.05): {above or 'none'}")
 
     res = dict(model=x["model"], suite=x["suite"], L=x["L"], D=D, ok=ok, chance=c,
