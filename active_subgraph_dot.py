@@ -74,7 +74,20 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 
-from transformer_lens import HookedTransformer
+# TransformerLens is optional.  Strategies B (native HuggingFace hooks) need it
+# not at all, and deep_probe.py pins Strategy B and rejects anything else, so a
+# hard import here would take down runs that never touch TL.  It does break:
+# the pip package does not export HookedTransformer on every version/Python
+# combination (observed on Colab, Python 3.13), and a partially initialised
+# package can raise something other than ImportError.  Catch broadly, remember
+# why, and let the strategy selection below decide what to do about it.
+try:
+    from transformer_lens import HookedTransformer
+    _TL_ERROR = None
+except Exception as _tl_exc:
+    HookedTransformer = None
+    _TL_ERROR = f"{type(_tl_exc).__name__}: {_tl_exc}"
+
 from path_analyzer import PathAnalyzer, select_active_edges_by_mass_coverage
 
 
@@ -208,7 +221,11 @@ class _HFHookedModel:
             n_layers          = n_layers,
             n_heads           = n_heads,
             d_model           = d_model,
-            d_head            = d_model // n_heads,
+            # head_dim may be set independently of hidden_size (Gemma-2,
+            # Mistral-Small-24B): d_model // n_heads is then wrong and every
+            # per-head reshape fails silently, leaving all-NaN scores.
+            d_head            = getattr(hf_model.config, 'head_dim', None)
+                                or (d_model // n_heads),
             model_name        = model_name,
             attn_only         = False,
             parallel_attn_mlp = bool(getattr(c, "parallel_attn_mlp", False)),
@@ -381,6 +398,34 @@ LARGE_MODEL_PRESETS: dict = {
 LAST_LOAD_INFO: dict = {}
 
 
+def _load_native_hooked(model_name: str, device: str, precision: Optional[str],
+                        attn_impl: Optional[str], *, note: Optional[str] = None):
+    """Load via native HuggingFace hooks, no TransformerLens.
+
+    Shared by the ASD_FORCE_STRATEGY=B path and by the TL-unavailable fallback
+    so the two cannot drift apart.  `note` is recorded in LAST_LOAD_INFO so a
+    substituted load path is visible in the output JSON rather than silent.
+    """
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    _kw = {"attn_implementation": attn_impl} if attn_impl else {}
+    hf = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        dtype=(torch.bfloat16 if precision == "bf16" else torch.float32),
+        low_cpu_mem_usage=True,
+        **_kw,
+    )
+    tok = AutoTokenizer.from_pretrained(model_name)
+    hf.eval()
+    _pp = next(hf.parameters())
+    LAST_LOAD_INFO.update(strategy="B",
+                          precision=str(_pp.dtype).replace("torch.", ""),
+                          wrapper="_HFHookedModel")
+    if note:
+        LAST_LOAD_INFO["load_note"] = note
+    print(f"  [B] Loaded {model_name} via native HF hooks on {device}.")
+    return _HFHookedModel(hf, tok, model_name)
+
+
 def load_model(model_name: str, device: str = "cuda",
                hf_token: Optional[str] = None):
     """
@@ -412,6 +457,7 @@ def load_model(model_name: str, device: str = "cuda",
         huggingface_hub.login(token=resolved, add_to_git_credential=False)
 
     device = device if torch.cuda.is_available() else "cpu"
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     # ── Reproducibility overrides ─────────────────────────────────────────────
     # ASD_FORCE_STRATEGY = "A" | "B"   pin the wrapping path
@@ -426,6 +472,18 @@ def load_model(model_name: str, device: str = "cuda",
     attn_impl = os.environ.get("ASD_ATTN_IMPL", "").lower() or None
     if force_strategy not in (None, "A", "B"):
         raise ValueError(f"ASD_FORCE_STRATEGY must be A or B, got {force_strategy!r}")
+    # Strategy A *is* TransformerLens, so a forced A is unsatisfiable without it
+    # on any device.  Refuse here rather than degrading: A and B are different
+    # measurement paths, and silently swapping one for the other is how a run
+    # gets reported as pinned when it was not (cf. the nf4 fallback).
+    if force_strategy == "A" and HookedTransformer is None:
+        raise RuntimeError(
+            f"ASD_FORCE_STRATEGY=A requires TransformerLens, which failed to "
+            f"import ({_TL_ERROR}). Either install a version that exports "
+            f"HookedTransformer, or set ASD_FORCE_STRATEGY=B to measure via "
+            f"native HuggingFace hooks. Refusing to substitute a different "
+            f"measurement path silently."
+        )
     if force_precision not in (None, "bf16", "nf4"):
         raise ValueError(f"ASD_FORCE_PRECISION must be bf16 or nf4, got {force_precision!r}")
 
@@ -434,7 +492,9 @@ def load_model(model_name: str, device: str = "cuda",
                           attn_impl=attn_impl,
                           forced_strategy=force_strategy,
                           forced_precision=force_precision,
-                          strategy=None, precision=None, wrapper=None)
+                          strategy=None, precision=None, wrapper=None,
+                          transformer_lens=("unavailable: " + _TL_ERROR)
+                                           if HookedTransformer is None else "ok")
     try:
         import bitsandbytes as _bnb_probe
         LAST_LOAD_INFO["bitsandbytes"] = getattr(_bnb_probe, "__version__", "unknown")
@@ -466,6 +526,20 @@ def load_model(model_name: str, device: str = "cuda",
         # Only use this path when the triple-copy peak fits in 90% of VRAM.
         use_a = (bf16_gb * 3 < vram_gb * 0.90) if force_strategy is None \
                 else (force_strategy == "A")
+        # Strategy A *is* TransformerLens.  If the import failed, an explicit
+        # request cannot be honoured and must not be silently substituted --
+        # A and B are different measurement paths, and quietly swapping them is
+        # how an unpinned comparison ends up reported as a pinned one.
+        # A forced A already raised above, so reaching here means A was chosen
+        # automatically and can be stepped down to B with the change recorded.
+        if HookedTransformer is None and use_a:
+            print(f"  [!] TransformerLens unavailable ({_TL_ERROR})")
+            print(f"  [!] → Strategy A unavailable; using native HF hooks (B).")
+            print(f"  [!]   recorded in load_info as load_note.")
+            LAST_LOAD_INFO["load_note"] = (
+                f"Strategy A auto-selected but TransformerLens unavailable "
+                f"({_TL_ERROR}); used native HF hooks instead")
+            use_a = False
         if use_a:
             print(f"  [A] Loading HF model to GPU (bfloat16) …")
             hf_model_a = None
@@ -660,6 +734,17 @@ def load_model(model_name: str, device: str = "cuda",
             print(f"  [B] Native HF loading failed ({type(e).__name__}: {e})")
             torch.cuda.empty_cache()
 
+    # ── Strategy B on CPU: native hooks without CUDA ──────────────────────────
+    # The A/B selection above is inside `if device == "cuda"`, so on CPU the code
+    # previously fell straight through to TransformerLens regardless of
+    # ASD_FORCE_STRATEGY.  That silently broke the pinning: a CPU run produced a
+    # HookedTransformer (and therefore a different measurement path) while
+    # reporting that Strategy B had been requested.  Honour the override on any
+    # device.
+    if force_strategy == "B":
+        print(f"  [B] ASD_FORCE_STRATEGY=B on {device} — native hooks, no TL wrapping …")
+        return _load_native_hooked(model_name, device, force_precision, attn_impl)
+
     # ── Strategy C: CPU via TransformerLens (small models / no GPU) ───────────
     # Only attempt if the model is small enough to load on CPU (< 30 GB
     # bfloat16). For large models all GPU strategies have already been tried.
@@ -674,8 +759,21 @@ def load_model(model_name: str, device: str = "cuda",
                 f"(run: !pip install -qU bitsandbytes) and restart the "
                 f"Colab runtime."
             )
+    if HookedTransformer is None:
+        print(f"  [!] TransformerLens unavailable ({_TL_ERROR})")
+        print(f"  [!] → Strategy C unavailable; using native HF hooks instead.")
+        return _load_native_hooked(
+            model_name, device, force_precision or "fp32", attn_impl,
+            note=(f"Strategy C (CPU/TransformerLens) selected but "
+                  f"TransformerLens unavailable ({_TL_ERROR}); used native "
+                  f"HF hooks instead"))
     model = HookedTransformer.from_pretrained(model_name, **extra)
     model.eval()
+    # Strategy C previously returned without recording anything, so a CPU run
+    # produced output whose load_info said strategy=None.  That is the gap the
+    # manuscript's provenance limitation describes; close it here.
+    LAST_LOAD_INFO.update(strategy="C", precision="fp32",
+                          wrapper="HookedTransformer")
     return model
 
 
@@ -2446,6 +2544,58 @@ def _gen_fixed_digit(depths=(3, 4, 5), tables=("cyc5", "cyc3", "cyc2", "ident"),
     return tasks, labels, answers
 
 
+def _rand_cycle(rng, n):
+    """Random single n-cycle on {0..n-1} -> dict."""
+    order = list(range(n))
+    rng.shuffle(order)
+    return {order[i]: order[(i + 1) % n] for i in range(n)}
+
+
+def _gen_serial_depth_rep(depths=range(1, 7), n_per=40, n_states=7, shots=0,
+                          shot_depths=(1, 2, 3), seed=0):
+    """Serial-depth ladder with many items per depth, for correct-only analysis.
+
+    Each item draws its own random single n-cycle and start state, so every
+    depth rung has n_per independent prompts and correctness can be conditioned
+    on without leaving one point per rung.
+
+    n_states=7 (not 5) because a 5-cycle returns to the start at k=5 and repeats
+    k=1 at k=6: in the original ladder D5's answer is the start digit and D6's
+    equals D1's, so a "correct" answer there can be a copy or a one-step
+    shortcut.  With a 7-cycle every k in 1..6 lands on a distinct, non-start
+    state.  Items whose answer equals the written step count are resampled, so
+    echoing k can never score as correct.
+
+    shots > 0 prepends that many solved examples (fixed across all items, each
+    with its own random rule table) to raise accuracy.  The prefix is identical
+    for every item, so prompt length stays constant across depth.
+    """
+    import random                      # module-level import comes later in the file
+    rng = random.Random(seed)
+    assert max(depths) < n_states, "k must stay below the cycle length"
+
+    def rules(tbl):
+        return "Rules: " + " ".join(f"{a} goes to {b}." for a, b in sorted(tbl.items())) + " "
+
+    prefix = ""
+    for k in shot_depths[:shots]:
+        tbl, s = _rand_cycle(rng, n_states), rng.randrange(n_states)
+        prefix += rules(tbl) + f"Start at {s}. Take {k} steps. You end at {_follow_table(tbl, s, k)}.\n\n"
+
+    tasks, labels, answers = [], [], []
+    for k in depths:
+        for i in range(n_per):
+            while True:
+                tbl, s = _rand_cycle(rng, n_states), rng.randrange(n_states)
+                gold = _follow_table(tbl, s, k)
+                if gold != k:
+                    break
+            tasks.append(prefix + rules(tbl) + f"Start at {s}. Take {k} steps. You end at")
+            labels.append(f"D{k}N{i:02d}")
+            answers.append(str(gold))
+    return tasks, labels, answers
+
+
 def _register_factorial_suites():
     """Build the (D, W) suites and add them to TASK_SUITES (labels carry D,W;
     the gold answers are stashed under the '_answers' key for accuracy scoring)."""
@@ -2469,6 +2619,11 @@ def _register_factorial_suites():
     fd_t, fd_l, fd_a = _gen_fixed_digit()
     TASK_SUITES["serial_replicates"] = {"tasks": rp_t, "labels": rp_l, "_answers": rp_a}
     TASK_SUITES["fixed_digit"]       = {"tasks": fd_t, "labels": fd_l, "_answers": fd_a}
+
+    # many items per depth; zero-shot and 3-shot (the latter to raise accuracy)
+    for name, shots in (("serial_depth_rep", 0), ("serial_depth_fs", 3)):
+        t, l, a = _gen_serial_depth_rep(shots=shots)
+        TASK_SUITES[name] = {"tasks": t, "labels": l, "_answers": a}
 
 
 _register_factorial_suites()
